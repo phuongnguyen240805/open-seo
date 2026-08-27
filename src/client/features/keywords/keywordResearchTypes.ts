@@ -1,0 +1,31 @@
+export const MAX_KEYWORDS_PER_SUBMIT = 5;
+
+export type ResultLimit = 150 | 300 | 500;
+export const RESULT_LIMITS: ResultLimit[] = [150, 300, 500];
+
+export type KeywordSource = "related" | "suggestions" | "ideas";
+export type KeywordMode = "auto" | KeywordSource;
+/** Actual result source; google_ads serves countries Labs doesn't cover. */
+export type ResearchSource = KeywordSource | "google_ads";
+
+export type KeywordFilterValues = {
+  include: string;
+  exclude: string;
+  minVol: string;
+  maxVol: string;
+  minCpc: string;
+  maxCpc: string;
+  minKd: string;
+  maxKd: string;
+};
+
+export const EMPTY_FILTERS: KeywordFilterValues = {
+  include: "",
+  exclude: "",
+  minVol: "",
+  maxVol: "",
+  minCpc: "",
+  maxCpc: "",
+  minKd: "",
+  maxKd: "",
+};

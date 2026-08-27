@@ -1,0 +1,12 @@
+.git
+.github
+.logs
+.wrangler
+node_modules
+dist
+coverage
+*.log
+Dockerfile
+.env
+.env.*
+!.env.example
