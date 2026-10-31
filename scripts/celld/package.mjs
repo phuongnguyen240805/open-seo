@@ -1,5 +1,5 @@
 import { cp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { basename, resolve } from "node:path";
 
 const destination = resolve(process.argv[2] ?? "dist/celld");
 // Build artifacts only. Never copy .dev.vars, generated Wrangler variables,
@@ -17,9 +17,7 @@ await rm(`${destination}/public`, { recursive: true, force: true });
 await cp("dist/client", `${destination}/public`, {
   recursive: true,
   filter: (path) =>
-    ![".dev.vars", "wrangler.json", ".assetsignore"].includes(
-      path.split("/").at(-1),
-    ),
+    ![".dev.vars", "wrangler.json", ".assetsignore"].includes(basename(path)),
 });
 await cp("drizzle/sqlite", `${destination}/drizzle`, { recursive: true });
 const config = JSON.parse(await readFile("wrangler.standalone.json", "utf8"));
