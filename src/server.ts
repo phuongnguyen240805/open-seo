@@ -194,6 +194,12 @@ async function handleAppRequest(
   const pathname = new URL(publicRequest.url).pathname;
   ctx.waitUntil(maybeSendSelfHostHeartbeat(pathname));
 
+  if (pathname.startsWith("/api/integrations/v1/")) {
+    const { handleRybbitRequest } =
+      await import("@/server/integrations/rybbit");
+    return handleRybbitRequest(publicRequest);
+  }
+
   // Standalone Docker operator tooling (account commands, legacy import).
   // Both handlers answer 404 without the operator secret; the block is also
   // what keeps hosted from paying a KV read per request.
