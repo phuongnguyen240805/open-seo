@@ -9,54 +9,93 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as VerifyEmailRouteImport } from './routes/verify-email'
-import { Route as ResetPasswordRouteImport } from './routes/reset-password'
-import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
-import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
-import { Route as AuthRouteImport } from './routes/_auth'
-import { Route as ProjectRouteRouteImport } from './routes/_project/route'
 import { Route as AppRouteRouteImport } from './routes/_app/route'
-import { Route as AppIndexRouteImport } from './routes/_app/index'
-import { Route as AuthenticatedSubscribeRouteImport } from './routes/_authenticated.subscribe'
-import { Route as AuthenticatedOauthConsentRouteImport } from './routes/_authenticated.oauth-consent'
-import { Route as AuthSignUpRouteImport } from './routes/_auth.sign-up'
-import { Route as AuthSignInRouteImport } from './routes/_auth.sign-in'
-import { Route as AppSupportRouteImport } from './routes/_app/support'
-import { Route as AppSettingsRouteImport } from './routes/_app/settings'
-import { Route as AppProjectsRouteImport } from './routes/_app/projects'
-import { Route as AppBillingRouteImport } from './routes/_app/billing'
-import { Route as AppAiRouteImport } from './routes/_app/ai'
+import { Route as AuthRouteImport } from './routes/_auth'
+import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
+import { Route as AuthErrorRouteImport } from './routes/auth-error'
+import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
+import { Route as ResetPasswordRouteImport } from './routes/reset-password'
+import { Route as VerifyEmailRouteImport } from './routes/verify-email'
+import { Route as Char91DotwellKnownChar93HttpMessageSignaturesDirectoryRouteImport } from './routes/[.well-known]/http-message-signatures-directory'
 import { Route as Char91DotwellKnownChar93OpenaiAppsChallengeRouteImport } from './routes/[.well-known]/openai-apps-challenge'
-import { Route as AuthenticatedOnboardingIndexRouteImport } from './routes/_authenticated.onboarding.index'
-import { Route as ApiAutumnSplatRouteImport } from './routes/api/autumn/$'
-import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
-import { Route as AuthenticatedOnboardingChatRouteImport } from './routes/_authenticated.onboarding.chat'
+import { Route as AppIndexRouteImport } from './routes/_app/index'
+import { Route as AppAiRouteImport } from './routes/_app/ai'
+import { Route as AppBillingRouteImport } from './routes/_app/billing'
+import { Route as AppProjectsRouteImport } from './routes/_app/projects'
+import { Route as AppSettingsRouteImport } from './routes/_app/settings'
+import { Route as AppSupportRouteImport } from './routes/_app/support'
+import { Route as AuthSignInRouteImport } from './routes/_auth.sign-in'
+import { Route as AuthSignUpRouteImport } from './routes/_auth.sign-up'
+import { Route as AuthenticatedOauthConsentRouteImport } from './routes/_authenticated.oauth-consent'
+import { Route as AuthenticatedSubscribeRouteImport } from './routes/_authenticated.subscribe'
+import { Route as AuthenticatedYcRouteImport } from './routes/_authenticated.yc'
+import { Route as AcceptInvitationIdRouteImport } from './routes/accept-invitation.$id'
+import { Route as ApiHealthRouteImport } from './routes/api/health'
+import { Route as ApiPrivacyRegionRouteImport } from './routes/api/privacy-region'
+import { Route as ApiSignUpStatusRouteImport } from './routes/api/sign-up-status'
+import { Route as RReportIdRouteImport } from './routes/r/$reportId'
+import { Route as AppBillingFixPaymentRouteImport } from './routes/_app/billing_.fix-payment'
 import { Route as AppHelpDataforseoApiKeyRouteImport } from './routes/_app/help/dataforseo-api-key'
-import { Route as ProjectPProjectIdRouteRouteImport } from './routes/_project/p/$projectId/route'
-import { Route as ProjectPProjectIdIndexRouteImport } from './routes/_project/p/$projectId/index'
+import { Route as AppHelpOpenrouterApiKeyRouteImport } from './routes/_app/help/openrouter-api-key'
+import { Route as AppPProjectIdRouteRouteImport } from './routes/_app/p/$projectId/route'
+import { Route as AppSettingsIndexRouteImport } from './routes/_app/settings/index'
+import { Route as AppSettingsOrganizationRouteImport } from './routes/_app/settings/organization'
+import { Route as AuthenticatedOnboardingIndexRouteImport } from './routes/_authenticated.onboarding.index'
+import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
+import { Route as ApiAutumnSplatRouteImport } from './routes/api/autumn/$'
+import { Route as ReportMapGrantCopyrightRouteImport } from './routes/report-map/$grant/copyright'
+import { Route as STokenIndexRouteImport } from './routes/s/$token/index'
+import { Route as STokenOgDotpngRouteImport } from './routes/s/$token/og[.]png'
+import { Route as STokenRawRouteImport } from './routes/s/$token/raw'
+import { Route as AppPProjectIdIndexRouteImport } from './routes/_app/p/$projectId/index'
+import { Route as AppPProjectIdAiVisibilityRouteImport } from './routes/_app/p/$projectId/ai-visibility'
+import { Route as AppPProjectIdBacklinksRouteImport } from './routes/_app/p/$projectId/backlinks'
+import { Route as AppPProjectIdBrandLookupRouteImport } from './routes/_app/p/$projectId/brand-lookup'
+import { Route as AppPProjectIdContextRouteImport } from './routes/_app/p/$projectId/context'
+import { Route as AppPProjectIdDomainRouteImport } from './routes/_app/p/$projectId/domain'
+import { Route as AppPProjectIdKeywordsRouteImport } from './routes/_app/p/$projectId/keywords'
+import { Route as AppPProjectIdLocalSeoRouteImport } from './routes/_app/p/$projectId/local-seo'
+import { Route as AppPProjectIdPromptExplorerRouteImport } from './routes/_app/p/$projectId/prompt-explorer'
+import { Route as AppPProjectIdRankTrackingRouteImport } from './routes/_app/p/$projectId/rank-tracking'
+import { Route as AppPProjectIdSamRouteImport } from './routes/_app/p/$projectId/sam'
+import { Route as AppPProjectIdSavedRouteImport } from './routes/_app/p/$projectId/saved'
+import { Route as AppPProjectIdSearchPerformanceRouteImport } from './routes/_app/p/$projectId/search-performance'
+import { Route as AppPProjectIdSettingsRouteImport } from './routes/_app/p/$projectId/settings'
+import { Route as ApiGa4OauthCallbackRouteImport } from './routes/api/ga4/oauth/callback'
 import { Route as ApiGscOauthCallbackRouteImport } from './routes/api/gsc/oauth/callback'
-import { Route as ProjectPProjectIdSettingsRouteImport } from './routes/_project/p/$projectId/settings'
-import { Route as ProjectPProjectIdSavedRouteImport } from './routes/_project/p/$projectId/saved'
-import { Route as ProjectPProjectIdRankTrackingRouteImport } from './routes/_project/p/$projectId/rank-tracking'
-import { Route as ProjectPProjectIdPromptExplorerRouteImport } from './routes/_project/p/$projectId/prompt-explorer'
-import { Route as ProjectPProjectIdKeywordsRouteImport } from './routes/_project/p/$projectId/keywords'
-import { Route as ProjectPProjectIdDomainRouteImport } from './routes/_project/p/$projectId/domain'
-import { Route as ProjectPProjectIdBrandLookupRouteImport } from './routes/_project/p/$projectId/brand-lookup'
-import { Route as ProjectPProjectIdBacklinksRouteImport } from './routes/_project/p/$projectId/backlinks'
-import { Route as ProjectPProjectIdAuditRouteImport } from './routes/_project/p/$projectId/audit'
-import { Route as ProjectPProjectIdRankTrackingIndexRouteImport } from './routes/_project/p/$projectId/rank-tracking/index'
-import { Route as ProjectPProjectIdAuditIndexRouteImport } from './routes/_project/p/$projectId/audit/index'
-import { Route as ProjectPProjectIdRankTrackingConfigIdRouteImport } from './routes/_project/p/$projectId/rank-tracking/$configId'
-import { Route as ProjectPProjectIdAuditIssuesResultIdRouteImport } from './routes/_project/p/$projectId/audit/issues/$resultId'
+import { Route as AppPProjectIdAiVisibilityIndexRouteImport } from './routes/_app/p/$projectId/ai-visibility/index'
+import { Route as AppPProjectIdAiVisibilityResearchRouteImport } from './routes/_app/p/$projectId/ai-visibility/research'
+import { Route as AppPProjectIdAuditIndexRouteImport } from './routes/_app/p/$projectId/audit/index'
+import { Route as AppPProjectIdLocalSeoIndexRouteImport } from './routes/_app/p/$projectId/local-seo/index'
+import { Route as AppPProjectIdLocalSeoTrackerIdRouteImport } from './routes/_app/p/$projectId/local-seo/$trackerId'
+import { Route as AppPProjectIdRankTrackingIndexRouteImport } from './routes/_app/p/$projectId/rank-tracking/index'
+import { Route as AppPProjectIdRankTrackingConfigIdRouteImport } from './routes/_app/p/$projectId/rank-tracking/$configId'
+import { Route as AppPProjectIdReportsIndexRouteImport } from './routes/_app/p/$projectId/reports/index'
+import { Route as AppPProjectIdReportsReportIdRouteImport } from './routes/_app/p/$projectId/reports/$reportId'
+import { Route as AppPProjectIdReportsTemplatesRouteImport } from './routes/_app/p/$projectId/reports/templates'
+import { Route as AppPProjectIdSettingsIndexRouteImport } from './routes/_app/p/$projectId/settings/index'
+import { Route as AppPProjectIdSettingsContextRouteImport } from './routes/_app/p/$projectId/settings/context'
+import { Route as AppPProjectIdSettingsIntegrationsRouteImport } from './routes/_app/p/$projectId/settings/integrations'
+import { Route as ReportMapGrantZXYRouteImport } from './routes/report-map/$grant/$z/$x/$y'
+import { Route as AppPProjectIdAiVisibilityPromptsPromptIdRouteImport } from './routes/_app/p/$projectId/ai-visibility/prompts/$promptId'
+import { Route as AppPProjectIdAuditIssuesResultIdRouteImport } from './routes/_app/p/$projectId/audit/issues/$resultId'
+import { Route as ApiLocalSeoMapsProjectIdZXYRouteImport } from './routes/api/local-seo/maps/$projectId/$z/$x/$y'
 
-const VerifyEmailRoute = VerifyEmailRouteImport.update({
-  id: '/verify-email',
-  path: '/verify-email',
+const AppRouteRoute = AppRouteRouteImport.update({
+  id: '/_app',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ResetPasswordRoute = ResetPasswordRouteImport.update({
-  id: '/reset-password',
-  path: '/reset-password',
+const AuthRoute = AuthRouteImport.update({
+  id: '/_auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedRoute = AuthenticatedRouteImport.update({
+  id: '/_authenticated',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthErrorRoute = AuthErrorRouteImport.update({
+  id: '/auth-error',
+  path: '/auth-error',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
@@ -64,66 +103,31 @@ const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
   path: '/forgot-password',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuthenticatedRoute = AuthenticatedRouteImport.update({
-  id: '/_authenticated',
+const ResetPasswordRoute = ResetPasswordRouteImport.update({
+  id: '/reset-password',
+  path: '/reset-password',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuthRoute = AuthRouteImport.update({
-  id: '/_auth',
+const VerifyEmailRoute = VerifyEmailRouteImport.update({
+  id: '/verify-email',
+  path: '/verify-email',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ProjectRouteRoute = ProjectRouteRouteImport.update({
-  id: '/_project',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AppRouteRoute = AppRouteRouteImport.update({
-  id: '/_app',
-  getParentRoute: () => rootRouteImport,
-} as any)
+const Char91DotwellKnownChar93HttpMessageSignaturesDirectoryRoute =
+  Char91DotwellKnownChar93HttpMessageSignaturesDirectoryRouteImport.update({
+    id: '/.well-known/http-message-signatures-directory',
+    path: '/.well-known/http-message-signatures-directory',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const Char91DotwellKnownChar93OpenaiAppsChallengeRoute =
+  Char91DotwellKnownChar93OpenaiAppsChallengeRouteImport.update({
+    id: '/.well-known/openai-apps-challenge',
+    path: '/.well-known/openai-apps-challenge',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const AppIndexRoute = AppIndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => AppRouteRoute,
-} as any)
-const AuthenticatedSubscribeRoute = AuthenticatedSubscribeRouteImport.update({
-  id: '/subscribe',
-  path: '/subscribe',
-  getParentRoute: () => AuthenticatedRoute,
-} as any)
-const AuthenticatedOauthConsentRoute =
-  AuthenticatedOauthConsentRouteImport.update({
-    id: '/oauth-consent',
-    path: '/oauth-consent',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
-const AuthSignUpRoute = AuthSignUpRouteImport.update({
-  id: '/sign-up',
-  path: '/sign-up',
-  getParentRoute: () => AuthRoute,
-} as any)
-const AuthSignInRoute = AuthSignInRouteImport.update({
-  id: '/sign-in',
-  path: '/sign-in',
-  getParentRoute: () => AuthRoute,
-} as any)
-const AppSupportRoute = AppSupportRouteImport.update({
-  id: '/support',
-  path: '/support',
-  getParentRoute: () => AppRouteRoute,
-} as any)
-const AppSettingsRoute = AppSettingsRouteImport.update({
-  id: '/settings',
-  path: '/settings',
-  getParentRoute: () => AppRouteRoute,
-} as any)
-const AppProjectsRoute = AppProjectsRouteImport.update({
-  id: '/projects',
-  path: '/projects',
-  getParentRoute: () => AppRouteRoute,
-} as any)
-const AppBillingRoute = AppBillingRouteImport.update({
-  id: '/billing',
-  path: '/billing',
   getParentRoute: () => AppRouteRoute,
 } as any)
 const AppAiRoute = AppAiRouteImport.update({
@@ -131,250 +135,546 @@ const AppAiRoute = AppAiRouteImport.update({
   path: '/ai',
   getParentRoute: () => AppRouteRoute,
 } as any)
-const Char91DotwellKnownChar93OpenaiAppsChallengeRoute =
-  Char91DotwellKnownChar93OpenaiAppsChallengeRouteImport.update({
-    id: '/.well-known/openai-apps-challenge',
-    path: '/.well-known/openai-apps-challenge',
-    getParentRoute: () => rootRouteImport,
+const AppBillingRoute = AppBillingRouteImport.update({
+  id: '/billing',
+  path: '/billing',
+  getParentRoute: () => AppRouteRoute,
+} as any)
+const AppProjectsRoute = AppProjectsRouteImport.update({
+  id: '/projects',
+  path: '/projects',
+  getParentRoute: () => AppRouteRoute,
+} as any)
+const AppSettingsRoute = AppSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => AppRouteRoute,
+} as any)
+const AppSupportRoute = AppSupportRouteImport.update({
+  id: '/support',
+  path: '/support',
+  getParentRoute: () => AppRouteRoute,
+} as any)
+const AuthSignInRoute = AuthSignInRouteImport.update({
+  id: '/sign-in',
+  path: '/sign-in',
+  getParentRoute: () => AuthRoute,
+} as any)
+const AuthSignUpRoute = AuthSignUpRouteImport.update({
+  id: '/sign-up',
+  path: '/sign-up',
+  getParentRoute: () => AuthRoute,
+} as any)
+const AuthenticatedOauthConsentRoute =
+  AuthenticatedOauthConsentRouteImport.update({
+    id: '/oauth-consent',
+    path: '/oauth-consent',
+    getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedSubscribeRoute = AuthenticatedSubscribeRouteImport.update({
+  id: '/subscribe',
+  path: '/subscribe',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedYcRoute = AuthenticatedYcRouteImport.update({
+  id: '/yc',
+  path: '/yc',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AcceptInvitationIdRoute = AcceptInvitationIdRouteImport.update({
+  id: '/accept-invitation/$id',
+  path: '/accept-invitation/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiHealthRoute = ApiHealthRouteImport.update({
+  id: '/api/health',
+  path: '/api/health',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPrivacyRegionRoute = ApiPrivacyRegionRouteImport.update({
+  id: '/api/privacy-region',
+  path: '/api/privacy-region',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiSignUpStatusRoute = ApiSignUpStatusRouteImport.update({
+  id: '/api/sign-up-status',
+  path: '/api/sign-up-status',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RReportIdRoute = RReportIdRouteImport.update({
+  id: '/r/$reportId',
+  path: '/r/$reportId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AppBillingFixPaymentRoute = AppBillingFixPaymentRouteImport.update({
+  id: '/billing_/fix-payment',
+  path: '/billing/fix-payment',
+  getParentRoute: () => AppRouteRoute,
+} as any)
+const AppHelpDataforseoApiKeyRoute = AppHelpDataforseoApiKeyRouteImport.update({
+  id: '/help/dataforseo-api-key',
+  path: '/help/dataforseo-api-key',
+  getParentRoute: () => AppRouteRoute,
+} as any)
+const AppHelpOpenrouterApiKeyRoute = AppHelpOpenrouterApiKeyRouteImport.update({
+  id: '/help/openrouter-api-key',
+  path: '/help/openrouter-api-key',
+  getParentRoute: () => AppRouteRoute,
+} as any)
+const AppPProjectIdRouteRoute = AppPProjectIdRouteRouteImport.update({
+  id: '/p/$projectId',
+  path: '/p/$projectId',
+  getParentRoute: () => AppRouteRoute,
+} as any)
+const AppSettingsIndexRoute = AppSettingsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AppSettingsRoute,
+} as any)
+const AppSettingsOrganizationRoute = AppSettingsOrganizationRouteImport.update({
+  id: '/organization',
+  path: '/organization',
+  getParentRoute: () => AppSettingsRoute,
+} as any)
 const AuthenticatedOnboardingIndexRoute =
   AuthenticatedOnboardingIndexRouteImport.update({
     id: '/onboarding/',
     path: '/onboarding/',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
-const ApiAutumnSplatRoute = ApiAutumnSplatRouteImport.update({
-  id: '/api/autumn/$',
-  path: '/api/autumn/$',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   id: '/api/auth/$',
   path: '/api/auth/$',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuthenticatedOnboardingChatRoute =
-  AuthenticatedOnboardingChatRouteImport.update({
-    id: '/onboarding/chat',
-    path: '/onboarding/chat',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
-const AppHelpDataforseoApiKeyRoute = AppHelpDataforseoApiKeyRouteImport.update({
-  id: '/help/dataforseo-api-key',
-  path: '/help/dataforseo-api-key',
-  getParentRoute: () => AppRouteRoute,
+const ApiAutumnSplatRoute = ApiAutumnSplatRouteImport.update({
+  id: '/api/autumn/$',
+  path: '/api/autumn/$',
+  getParentRoute: () => rootRouteImport,
 } as any)
-const ProjectPProjectIdRouteRoute = ProjectPProjectIdRouteRouteImport.update({
-  id: '/p/$projectId',
-  path: '/p/$projectId',
-  getParentRoute: () => ProjectRouteRoute,
+const ReportMapGrantCopyrightRoute = ReportMapGrantCopyrightRouteImport.update({
+  id: '/report-map/$grant/copyright',
+  path: '/report-map/$grant/copyright',
+  getParentRoute: () => rootRouteImport,
 } as any)
-const ProjectPProjectIdIndexRoute = ProjectPProjectIdIndexRouteImport.update({
+const STokenIndexRoute = STokenIndexRouteImport.update({
+  id: '/s/$token/',
+  path: '/s/$token/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const STokenOgDotpngRoute = STokenOgDotpngRouteImport.update({
+  id: '/s/$token/og.png',
+  path: '/s/$token/og.png',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const STokenRawRoute = STokenRawRouteImport.update({
+  id: '/s/$token/raw',
+  path: '/s/$token/raw',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AppPProjectIdIndexRoute = AppPProjectIdIndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => ProjectPProjectIdRouteRoute,
+  getParentRoute: () => AppPProjectIdRouteRoute,
+} as any)
+const AppPProjectIdAiVisibilityRoute =
+  AppPProjectIdAiVisibilityRouteImport.update({
+    id: '/ai-visibility',
+    path: '/ai-visibility',
+    getParentRoute: () => AppPProjectIdRouteRoute,
+  } as any)
+const AppPProjectIdBacklinksRoute = AppPProjectIdBacklinksRouteImport.update({
+  id: '/backlinks',
+  path: '/backlinks',
+  getParentRoute: () => AppPProjectIdRouteRoute,
+} as any)
+const AppPProjectIdBrandLookupRoute =
+  AppPProjectIdBrandLookupRouteImport.update({
+    id: '/brand-lookup',
+    path: '/brand-lookup',
+    getParentRoute: () => AppPProjectIdRouteRoute,
+  } as any)
+const AppPProjectIdContextRoute = AppPProjectIdContextRouteImport.update({
+  id: '/context',
+  path: '/context',
+  getParentRoute: () => AppPProjectIdRouteRoute,
+} as any)
+const AppPProjectIdDomainRoute = AppPProjectIdDomainRouteImport.update({
+  id: '/domain',
+  path: '/domain',
+  getParentRoute: () => AppPProjectIdRouteRoute,
+} as any)
+const AppPProjectIdKeywordsRoute = AppPProjectIdKeywordsRouteImport.update({
+  id: '/keywords',
+  path: '/keywords',
+  getParentRoute: () => AppPProjectIdRouteRoute,
+} as any)
+const AppPProjectIdLocalSeoRoute = AppPProjectIdLocalSeoRouteImport.update({
+  id: '/local-seo',
+  path: '/local-seo',
+  getParentRoute: () => AppPProjectIdRouteRoute,
+} as any)
+const AppPProjectIdPromptExplorerRoute =
+  AppPProjectIdPromptExplorerRouteImport.update({
+    id: '/prompt-explorer',
+    path: '/prompt-explorer',
+    getParentRoute: () => AppPProjectIdRouteRoute,
+  } as any)
+const AppPProjectIdRankTrackingRoute =
+  AppPProjectIdRankTrackingRouteImport.update({
+    id: '/rank-tracking',
+    path: '/rank-tracking',
+    getParentRoute: () => AppPProjectIdRouteRoute,
+  } as any)
+const AppPProjectIdSamRoute = AppPProjectIdSamRouteImport.update({
+  id: '/sam',
+  path: '/sam',
+  getParentRoute: () => AppPProjectIdRouteRoute,
+} as any)
+const AppPProjectIdSavedRoute = AppPProjectIdSavedRouteImport.update({
+  id: '/saved',
+  path: '/saved',
+  getParentRoute: () => AppPProjectIdRouteRoute,
+} as any)
+const AppPProjectIdSearchPerformanceRoute =
+  AppPProjectIdSearchPerformanceRouteImport.update({
+    id: '/search-performance',
+    path: '/search-performance',
+    getParentRoute: () => AppPProjectIdRouteRoute,
+  } as any)
+const AppPProjectIdSettingsRoute = AppPProjectIdSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => AppPProjectIdRouteRoute,
+} as any)
+const ApiGa4OauthCallbackRoute = ApiGa4OauthCallbackRouteImport.update({
+  id: '/api/ga4/oauth/callback',
+  path: '/api/ga4/oauth/callback',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const ApiGscOauthCallbackRoute = ApiGscOauthCallbackRouteImport.update({
   id: '/api/gsc/oauth/callback',
   path: '/api/gsc/oauth/callback',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ProjectPProjectIdSettingsRoute =
-  ProjectPProjectIdSettingsRouteImport.update({
-    id: '/settings',
-    path: '/settings',
-    getParentRoute: () => ProjectPProjectIdRouteRoute,
-  } as any)
-const ProjectPProjectIdSavedRoute = ProjectPProjectIdSavedRouteImport.update({
-  id: '/saved',
-  path: '/saved',
-  getParentRoute: () => ProjectPProjectIdRouteRoute,
-} as any)
-const ProjectPProjectIdRankTrackingRoute =
-  ProjectPProjectIdRankTrackingRouteImport.update({
-    id: '/rank-tracking',
-    path: '/rank-tracking',
-    getParentRoute: () => ProjectPProjectIdRouteRoute,
-  } as any)
-const ProjectPProjectIdPromptExplorerRoute =
-  ProjectPProjectIdPromptExplorerRouteImport.update({
-    id: '/prompt-explorer',
-    path: '/prompt-explorer',
-    getParentRoute: () => ProjectPProjectIdRouteRoute,
-  } as any)
-const ProjectPProjectIdKeywordsRoute =
-  ProjectPProjectIdKeywordsRouteImport.update({
-    id: '/keywords',
-    path: '/keywords',
-    getParentRoute: () => ProjectPProjectIdRouteRoute,
-  } as any)
-const ProjectPProjectIdDomainRoute = ProjectPProjectIdDomainRouteImport.update({
-  id: '/domain',
-  path: '/domain',
-  getParentRoute: () => ProjectPProjectIdRouteRoute,
-} as any)
-const ProjectPProjectIdBrandLookupRoute =
-  ProjectPProjectIdBrandLookupRouteImport.update({
-    id: '/brand-lookup',
-    path: '/brand-lookup',
-    getParentRoute: () => ProjectPProjectIdRouteRoute,
-  } as any)
-const ProjectPProjectIdBacklinksRoute =
-  ProjectPProjectIdBacklinksRouteImport.update({
-    id: '/backlinks',
-    path: '/backlinks',
-    getParentRoute: () => ProjectPProjectIdRouteRoute,
-  } as any)
-const ProjectPProjectIdAuditRoute = ProjectPProjectIdAuditRouteImport.update({
-  id: '/audit',
-  path: '/audit',
-  getParentRoute: () => ProjectPProjectIdRouteRoute,
-} as any)
-const ProjectPProjectIdRankTrackingIndexRoute =
-  ProjectPProjectIdRankTrackingIndexRouteImport.update({
+const AppPProjectIdAiVisibilityIndexRoute =
+  AppPProjectIdAiVisibilityIndexRouteImport.update({
     id: '/',
     path: '/',
-    getParentRoute: () => ProjectPProjectIdRankTrackingRoute,
+    getParentRoute: () => AppPProjectIdAiVisibilityRoute,
   } as any)
-const ProjectPProjectIdAuditIndexRoute =
-  ProjectPProjectIdAuditIndexRouteImport.update({
+const AppPProjectIdAiVisibilityResearchRoute =
+  AppPProjectIdAiVisibilityResearchRouteImport.update({
+    id: '/research',
+    path: '/research',
+    getParentRoute: () => AppPProjectIdAiVisibilityRoute,
+  } as any)
+const AppPProjectIdAuditIndexRoute = AppPProjectIdAuditIndexRouteImport.update({
+  id: '/audit/',
+  path: '/audit/',
+  getParentRoute: () => AppPProjectIdRouteRoute,
+} as any)
+const AppPProjectIdLocalSeoIndexRoute =
+  AppPProjectIdLocalSeoIndexRouteImport.update({
     id: '/',
     path: '/',
-    getParentRoute: () => ProjectPProjectIdAuditRoute,
+    getParentRoute: () => AppPProjectIdLocalSeoRoute,
   } as any)
-const ProjectPProjectIdRankTrackingConfigIdRoute =
-  ProjectPProjectIdRankTrackingConfigIdRouteImport.update({
+const AppPProjectIdLocalSeoTrackerIdRoute =
+  AppPProjectIdLocalSeoTrackerIdRouteImport.update({
+    id: '/$trackerId',
+    path: '/$trackerId',
+    getParentRoute: () => AppPProjectIdLocalSeoRoute,
+  } as any)
+const AppPProjectIdRankTrackingIndexRoute =
+  AppPProjectIdRankTrackingIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => AppPProjectIdRankTrackingRoute,
+  } as any)
+const AppPProjectIdRankTrackingConfigIdRoute =
+  AppPProjectIdRankTrackingConfigIdRouteImport.update({
     id: '/$configId',
     path: '/$configId',
-    getParentRoute: () => ProjectPProjectIdRankTrackingRoute,
+    getParentRoute: () => AppPProjectIdRankTrackingRoute,
   } as any)
-const ProjectPProjectIdAuditIssuesResultIdRoute =
-  ProjectPProjectIdAuditIssuesResultIdRouteImport.update({
-    id: '/issues/$resultId',
-    path: '/issues/$resultId',
-    getParentRoute: () => ProjectPProjectIdAuditRoute,
+const AppPProjectIdReportsIndexRoute =
+  AppPProjectIdReportsIndexRouteImport.update({
+    id: '/reports/',
+    path: '/reports/',
+    getParentRoute: () => AppPProjectIdRouteRoute,
+  } as any)
+const AppPProjectIdReportsReportIdRoute =
+  AppPProjectIdReportsReportIdRouteImport.update({
+    id: '/reports/$reportId',
+    path: '/reports/$reportId',
+    getParentRoute: () => AppPProjectIdRouteRoute,
+  } as any)
+const AppPProjectIdReportsTemplatesRoute =
+  AppPProjectIdReportsTemplatesRouteImport.update({
+    id: '/reports/templates',
+    path: '/reports/templates',
+    getParentRoute: () => AppPProjectIdRouteRoute,
+  } as any)
+const AppPProjectIdSettingsIndexRoute =
+  AppPProjectIdSettingsIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => AppPProjectIdSettingsRoute,
+  } as any)
+const AppPProjectIdSettingsContextRoute =
+  AppPProjectIdSettingsContextRouteImport.update({
+    id: '/context',
+    path: '/context',
+    getParentRoute: () => AppPProjectIdSettingsRoute,
+  } as any)
+const AppPProjectIdSettingsIntegrationsRoute =
+  AppPProjectIdSettingsIntegrationsRouteImport.update({
+    id: '/integrations',
+    path: '/integrations',
+    getParentRoute: () => AppPProjectIdSettingsRoute,
+  } as any)
+const ReportMapGrantZXYRoute = ReportMapGrantZXYRouteImport.update({
+  id: '/report-map/$grant/$z/$x/$y',
+  path: '/report-map/$grant/$z/$x/$y',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AppPProjectIdAiVisibilityPromptsPromptIdRoute =
+  AppPProjectIdAiVisibilityPromptsPromptIdRouteImport.update({
+    id: '/prompts/$promptId',
+    path: '/prompts/$promptId',
+    getParentRoute: () => AppPProjectIdAiVisibilityRoute,
+  } as any)
+const AppPProjectIdAuditIssuesResultIdRoute =
+  AppPProjectIdAuditIssuesResultIdRouteImport.update({
+    id: '/audit/issues/$resultId',
+    path: '/audit/issues/$resultId',
+    getParentRoute: () => AppPProjectIdRouteRoute,
+  } as any)
+const ApiLocalSeoMapsProjectIdZXYRoute =
+  ApiLocalSeoMapsProjectIdZXYRouteImport.update({
+    id: '/api/local-seo/maps/$projectId/$z/$x/$y',
+    path: '/api/local-seo/maps/$projectId/$z/$x/$y',
+    getParentRoute: () => rootRouteImport,
   } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
+  '/auth-error': typeof AuthErrorRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/reset-password': typeof ResetPasswordRoute
   '/verify-email': typeof VerifyEmailRoute
+  '/.well-known/http-message-signatures-directory': typeof Char91DotwellKnownChar93HttpMessageSignaturesDirectoryRoute
   '/.well-known/openai-apps-challenge': typeof Char91DotwellKnownChar93OpenaiAppsChallengeRoute
   '/ai': typeof AppAiRoute
   '/billing': typeof AppBillingRoute
   '/projects': typeof AppProjectsRoute
-  '/settings': typeof AppSettingsRoute
+  '/settings': typeof AppSettingsRouteWithChildren
   '/support': typeof AppSupportRoute
   '/sign-in': typeof AuthSignInRoute
   '/sign-up': typeof AuthSignUpRoute
   '/oauth-consent': typeof AuthenticatedOauthConsentRoute
   '/subscribe': typeof AuthenticatedSubscribeRoute
-  '/p/$projectId': typeof ProjectPProjectIdRouteRouteWithChildren
+  '/yc': typeof AuthenticatedYcRoute
+  '/accept-invitation/$id': typeof AcceptInvitationIdRoute
+  '/api/health': typeof ApiHealthRoute
+  '/api/privacy-region': typeof ApiPrivacyRegionRoute
+  '/api/sign-up-status': typeof ApiSignUpStatusRoute
+  '/r/$reportId': typeof RReportIdRoute
+  '/p/$projectId': typeof AppPProjectIdRouteRouteWithChildren
+  '/billing/fix-payment': typeof AppBillingFixPaymentRoute
   '/help/dataforseo-api-key': typeof AppHelpDataforseoApiKeyRoute
-  '/onboarding/chat': typeof AuthenticatedOnboardingChatRoute
+  '/help/openrouter-api-key': typeof AppHelpOpenrouterApiKeyRoute
+  '/settings/organization': typeof AppSettingsOrganizationRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/autumn/$': typeof ApiAutumnSplatRoute
+  '/report-map/$grant/copyright': typeof ReportMapGrantCopyrightRoute
+  '/s/$token/og.png': typeof STokenOgDotpngRoute
+  '/s/$token/raw': typeof STokenRawRoute
+  '/settings/': typeof AppSettingsIndexRoute
   '/onboarding/': typeof AuthenticatedOnboardingIndexRoute
-  '/p/$projectId/audit': typeof ProjectPProjectIdAuditRouteWithChildren
-  '/p/$projectId/backlinks': typeof ProjectPProjectIdBacklinksRoute
-  '/p/$projectId/brand-lookup': typeof ProjectPProjectIdBrandLookupRoute
-  '/p/$projectId/domain': typeof ProjectPProjectIdDomainRoute
-  '/p/$projectId/keywords': typeof ProjectPProjectIdKeywordsRoute
-  '/p/$projectId/prompt-explorer': typeof ProjectPProjectIdPromptExplorerRoute
-  '/p/$projectId/rank-tracking': typeof ProjectPProjectIdRankTrackingRouteWithChildren
-  '/p/$projectId/saved': typeof ProjectPProjectIdSavedRoute
-  '/p/$projectId/settings': typeof ProjectPProjectIdSettingsRoute
+  '/s/$token/': typeof STokenIndexRoute
+  '/p/$projectId/ai-visibility': typeof AppPProjectIdAiVisibilityRouteWithChildren
+  '/p/$projectId/backlinks': typeof AppPProjectIdBacklinksRoute
+  '/p/$projectId/brand-lookup': typeof AppPProjectIdBrandLookupRoute
+  '/p/$projectId/context': typeof AppPProjectIdContextRoute
+  '/p/$projectId/domain': typeof AppPProjectIdDomainRoute
+  '/p/$projectId/keywords': typeof AppPProjectIdKeywordsRoute
+  '/p/$projectId/local-seo': typeof AppPProjectIdLocalSeoRouteWithChildren
+  '/p/$projectId/prompt-explorer': typeof AppPProjectIdPromptExplorerRoute
+  '/p/$projectId/rank-tracking': typeof AppPProjectIdRankTrackingRouteWithChildren
+  '/p/$projectId/sam': typeof AppPProjectIdSamRoute
+  '/p/$projectId/saved': typeof AppPProjectIdSavedRoute
+  '/p/$projectId/search-performance': typeof AppPProjectIdSearchPerformanceRoute
+  '/p/$projectId/settings': typeof AppPProjectIdSettingsRouteWithChildren
+  '/api/ga4/oauth/callback': typeof ApiGa4OauthCallbackRoute
   '/api/gsc/oauth/callback': typeof ApiGscOauthCallbackRoute
-  '/p/$projectId/': typeof ProjectPProjectIdIndexRoute
-  '/p/$projectId/rank-tracking/$configId': typeof ProjectPProjectIdRankTrackingConfigIdRoute
-  '/p/$projectId/audit/': typeof ProjectPProjectIdAuditIndexRoute
-  '/p/$projectId/rank-tracking/': typeof ProjectPProjectIdRankTrackingIndexRoute
-  '/p/$projectId/audit/issues/$resultId': typeof ProjectPProjectIdAuditIssuesResultIdRoute
+  '/p/$projectId/': typeof AppPProjectIdIndexRoute
+  '/p/$projectId/ai-visibility/research': typeof AppPProjectIdAiVisibilityResearchRoute
+  '/p/$projectId/local-seo/$trackerId': typeof AppPProjectIdLocalSeoTrackerIdRoute
+  '/p/$projectId/rank-tracking/$configId': typeof AppPProjectIdRankTrackingConfigIdRoute
+  '/p/$projectId/reports/$reportId': typeof AppPProjectIdReportsReportIdRoute
+  '/p/$projectId/reports/templates': typeof AppPProjectIdReportsTemplatesRoute
+  '/p/$projectId/settings/context': typeof AppPProjectIdSettingsContextRoute
+  '/p/$projectId/settings/integrations': typeof AppPProjectIdSettingsIntegrationsRoute
+  '/report-map/$grant/$z/$x/$y': typeof ReportMapGrantZXYRoute
+  '/p/$projectId/ai-visibility/': typeof AppPProjectIdAiVisibilityIndexRoute
+  '/p/$projectId/audit/': typeof AppPProjectIdAuditIndexRoute
+  '/p/$projectId/local-seo/': typeof AppPProjectIdLocalSeoIndexRoute
+  '/p/$projectId/rank-tracking/': typeof AppPProjectIdRankTrackingIndexRoute
+  '/p/$projectId/reports/': typeof AppPProjectIdReportsIndexRoute
+  '/p/$projectId/settings/': typeof AppPProjectIdSettingsIndexRoute
+  '/p/$projectId/ai-visibility/prompts/$promptId': typeof AppPProjectIdAiVisibilityPromptsPromptIdRoute
+  '/p/$projectId/audit/issues/$resultId': typeof AppPProjectIdAuditIssuesResultIdRoute
+  '/api/local-seo/maps/$projectId/$z/$x/$y': typeof ApiLocalSeoMapsProjectIdZXYRoute
 }
 export interface FileRoutesByTo {
   '/': typeof AppIndexRoute
+  '/auth-error': typeof AuthErrorRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/reset-password': typeof ResetPasswordRoute
   '/verify-email': typeof VerifyEmailRoute
+  '/.well-known/http-message-signatures-directory': typeof Char91DotwellKnownChar93HttpMessageSignaturesDirectoryRoute
   '/.well-known/openai-apps-challenge': typeof Char91DotwellKnownChar93OpenaiAppsChallengeRoute
   '/ai': typeof AppAiRoute
   '/billing': typeof AppBillingRoute
   '/projects': typeof AppProjectsRoute
-  '/settings': typeof AppSettingsRoute
   '/support': typeof AppSupportRoute
   '/sign-in': typeof AuthSignInRoute
   '/sign-up': typeof AuthSignUpRoute
   '/oauth-consent': typeof AuthenticatedOauthConsentRoute
   '/subscribe': typeof AuthenticatedSubscribeRoute
+  '/yc': typeof AuthenticatedYcRoute
+  '/accept-invitation/$id': typeof AcceptInvitationIdRoute
+  '/api/health': typeof ApiHealthRoute
+  '/api/privacy-region': typeof ApiPrivacyRegionRoute
+  '/api/sign-up-status': typeof ApiSignUpStatusRoute
+  '/r/$reportId': typeof RReportIdRoute
+  '/billing/fix-payment': typeof AppBillingFixPaymentRoute
   '/help/dataforseo-api-key': typeof AppHelpDataforseoApiKeyRoute
-  '/onboarding/chat': typeof AuthenticatedOnboardingChatRoute
+  '/help/openrouter-api-key': typeof AppHelpOpenrouterApiKeyRoute
+  '/settings/organization': typeof AppSettingsOrganizationRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/autumn/$': typeof ApiAutumnSplatRoute
+  '/report-map/$grant/copyright': typeof ReportMapGrantCopyrightRoute
+  '/s/$token/og.png': typeof STokenOgDotpngRoute
+  '/s/$token/raw': typeof STokenRawRoute
+  '/settings': typeof AppSettingsIndexRoute
   '/onboarding': typeof AuthenticatedOnboardingIndexRoute
-  '/p/$projectId/backlinks': typeof ProjectPProjectIdBacklinksRoute
-  '/p/$projectId/brand-lookup': typeof ProjectPProjectIdBrandLookupRoute
-  '/p/$projectId/domain': typeof ProjectPProjectIdDomainRoute
-  '/p/$projectId/keywords': typeof ProjectPProjectIdKeywordsRoute
-  '/p/$projectId/prompt-explorer': typeof ProjectPProjectIdPromptExplorerRoute
-  '/p/$projectId/saved': typeof ProjectPProjectIdSavedRoute
-  '/p/$projectId/settings': typeof ProjectPProjectIdSettingsRoute
+  '/s/$token': typeof STokenIndexRoute
+  '/p/$projectId/backlinks': typeof AppPProjectIdBacklinksRoute
+  '/p/$projectId/brand-lookup': typeof AppPProjectIdBrandLookupRoute
+  '/p/$projectId/context': typeof AppPProjectIdContextRoute
+  '/p/$projectId/domain': typeof AppPProjectIdDomainRoute
+  '/p/$projectId/keywords': typeof AppPProjectIdKeywordsRoute
+  '/p/$projectId/prompt-explorer': typeof AppPProjectIdPromptExplorerRoute
+  '/p/$projectId/sam': typeof AppPProjectIdSamRoute
+  '/p/$projectId/saved': typeof AppPProjectIdSavedRoute
+  '/p/$projectId/search-performance': typeof AppPProjectIdSearchPerformanceRoute
+  '/api/ga4/oauth/callback': typeof ApiGa4OauthCallbackRoute
   '/api/gsc/oauth/callback': typeof ApiGscOauthCallbackRoute
-  '/p/$projectId': typeof ProjectPProjectIdIndexRoute
-  '/p/$projectId/rank-tracking/$configId': typeof ProjectPProjectIdRankTrackingConfigIdRoute
-  '/p/$projectId/audit': typeof ProjectPProjectIdAuditIndexRoute
-  '/p/$projectId/rank-tracking': typeof ProjectPProjectIdRankTrackingIndexRoute
-  '/p/$projectId/audit/issues/$resultId': typeof ProjectPProjectIdAuditIssuesResultIdRoute
+  '/p/$projectId': typeof AppPProjectIdIndexRoute
+  '/p/$projectId/ai-visibility/research': typeof AppPProjectIdAiVisibilityResearchRoute
+  '/p/$projectId/local-seo/$trackerId': typeof AppPProjectIdLocalSeoTrackerIdRoute
+  '/p/$projectId/rank-tracking/$configId': typeof AppPProjectIdRankTrackingConfigIdRoute
+  '/p/$projectId/reports/$reportId': typeof AppPProjectIdReportsReportIdRoute
+  '/p/$projectId/reports/templates': typeof AppPProjectIdReportsTemplatesRoute
+  '/p/$projectId/settings/context': typeof AppPProjectIdSettingsContextRoute
+  '/p/$projectId/settings/integrations': typeof AppPProjectIdSettingsIntegrationsRoute
+  '/report-map/$grant/$z/$x/$y': typeof ReportMapGrantZXYRoute
+  '/p/$projectId/ai-visibility': typeof AppPProjectIdAiVisibilityIndexRoute
+  '/p/$projectId/audit': typeof AppPProjectIdAuditIndexRoute
+  '/p/$projectId/local-seo': typeof AppPProjectIdLocalSeoIndexRoute
+  '/p/$projectId/rank-tracking': typeof AppPProjectIdRankTrackingIndexRoute
+  '/p/$projectId/reports': typeof AppPProjectIdReportsIndexRoute
+  '/p/$projectId/settings': typeof AppPProjectIdSettingsIndexRoute
+  '/p/$projectId/ai-visibility/prompts/$promptId': typeof AppPProjectIdAiVisibilityPromptsPromptIdRoute
+  '/p/$projectId/audit/issues/$resultId': typeof AppPProjectIdAuditIssuesResultIdRoute
+  '/api/local-seo/maps/$projectId/$z/$x/$y': typeof ApiLocalSeoMapsProjectIdZXYRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_app': typeof AppRouteRouteWithChildren
-  '/_project': typeof ProjectRouteRouteWithChildren
   '/_auth': typeof AuthRouteWithChildren
   '/_authenticated': typeof AuthenticatedRouteWithChildren
+  '/auth-error': typeof AuthErrorRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/reset-password': typeof ResetPasswordRoute
   '/verify-email': typeof VerifyEmailRoute
+  '/.well-known/http-message-signatures-directory': typeof Char91DotwellKnownChar93HttpMessageSignaturesDirectoryRoute
   '/.well-known/openai-apps-challenge': typeof Char91DotwellKnownChar93OpenaiAppsChallengeRoute
   '/_app/ai': typeof AppAiRoute
   '/_app/billing': typeof AppBillingRoute
   '/_app/projects': typeof AppProjectsRoute
-  '/_app/settings': typeof AppSettingsRoute
+  '/_app/settings': typeof AppSettingsRouteWithChildren
   '/_app/support': typeof AppSupportRoute
   '/_auth/sign-in': typeof AuthSignInRoute
   '/_auth/sign-up': typeof AuthSignUpRoute
   '/_authenticated/oauth-consent': typeof AuthenticatedOauthConsentRoute
   '/_authenticated/subscribe': typeof AuthenticatedSubscribeRoute
+  '/_authenticated/yc': typeof AuthenticatedYcRoute
+  '/accept-invitation/$id': typeof AcceptInvitationIdRoute
+  '/api/health': typeof ApiHealthRoute
+  '/api/privacy-region': typeof ApiPrivacyRegionRoute
+  '/api/sign-up-status': typeof ApiSignUpStatusRoute
+  '/r/$reportId': typeof RReportIdRoute
   '/_app/': typeof AppIndexRoute
-  '/_project/p/$projectId': typeof ProjectPProjectIdRouteRouteWithChildren
+  '/_app/p/$projectId': typeof AppPProjectIdRouteRouteWithChildren
+  '/_app/billing_/fix-payment': typeof AppBillingFixPaymentRoute
   '/_app/help/dataforseo-api-key': typeof AppHelpDataforseoApiKeyRoute
-  '/_authenticated/onboarding/chat': typeof AuthenticatedOnboardingChatRoute
+  '/_app/help/openrouter-api-key': typeof AppHelpOpenrouterApiKeyRoute
+  '/_app/settings/organization': typeof AppSettingsOrganizationRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/autumn/$': typeof ApiAutumnSplatRoute
+  '/report-map/$grant/copyright': typeof ReportMapGrantCopyrightRoute
+  '/s/$token/og.png': typeof STokenOgDotpngRoute
+  '/s/$token/raw': typeof STokenRawRoute
+  '/_app/settings/': typeof AppSettingsIndexRoute
   '/_authenticated/onboarding/': typeof AuthenticatedOnboardingIndexRoute
-  '/_project/p/$projectId/audit': typeof ProjectPProjectIdAuditRouteWithChildren
-  '/_project/p/$projectId/backlinks': typeof ProjectPProjectIdBacklinksRoute
-  '/_project/p/$projectId/brand-lookup': typeof ProjectPProjectIdBrandLookupRoute
-  '/_project/p/$projectId/domain': typeof ProjectPProjectIdDomainRoute
-  '/_project/p/$projectId/keywords': typeof ProjectPProjectIdKeywordsRoute
-  '/_project/p/$projectId/prompt-explorer': typeof ProjectPProjectIdPromptExplorerRoute
-  '/_project/p/$projectId/rank-tracking': typeof ProjectPProjectIdRankTrackingRouteWithChildren
-  '/_project/p/$projectId/saved': typeof ProjectPProjectIdSavedRoute
-  '/_project/p/$projectId/settings': typeof ProjectPProjectIdSettingsRoute
+  '/s/$token/': typeof STokenIndexRoute
+  '/_app/p/$projectId/ai-visibility': typeof AppPProjectIdAiVisibilityRouteWithChildren
+  '/_app/p/$projectId/backlinks': typeof AppPProjectIdBacklinksRoute
+  '/_app/p/$projectId/brand-lookup': typeof AppPProjectIdBrandLookupRoute
+  '/_app/p/$projectId/context': typeof AppPProjectIdContextRoute
+  '/_app/p/$projectId/domain': typeof AppPProjectIdDomainRoute
+  '/_app/p/$projectId/keywords': typeof AppPProjectIdKeywordsRoute
+  '/_app/p/$projectId/local-seo': typeof AppPProjectIdLocalSeoRouteWithChildren
+  '/_app/p/$projectId/prompt-explorer': typeof AppPProjectIdPromptExplorerRoute
+  '/_app/p/$projectId/rank-tracking': typeof AppPProjectIdRankTrackingRouteWithChildren
+  '/_app/p/$projectId/sam': typeof AppPProjectIdSamRoute
+  '/_app/p/$projectId/saved': typeof AppPProjectIdSavedRoute
+  '/_app/p/$projectId/search-performance': typeof AppPProjectIdSearchPerformanceRoute
+  '/_app/p/$projectId/settings': typeof AppPProjectIdSettingsRouteWithChildren
+  '/api/ga4/oauth/callback': typeof ApiGa4OauthCallbackRoute
   '/api/gsc/oauth/callback': typeof ApiGscOauthCallbackRoute
-  '/_project/p/$projectId/': typeof ProjectPProjectIdIndexRoute
-  '/_project/p/$projectId/rank-tracking/$configId': typeof ProjectPProjectIdRankTrackingConfigIdRoute
-  '/_project/p/$projectId/audit/': typeof ProjectPProjectIdAuditIndexRoute
-  '/_project/p/$projectId/rank-tracking/': typeof ProjectPProjectIdRankTrackingIndexRoute
-  '/_project/p/$projectId/audit/issues/$resultId': typeof ProjectPProjectIdAuditIssuesResultIdRoute
+  '/_app/p/$projectId/': typeof AppPProjectIdIndexRoute
+  '/_app/p/$projectId/ai-visibility/research': typeof AppPProjectIdAiVisibilityResearchRoute
+  '/_app/p/$projectId/local-seo/$trackerId': typeof AppPProjectIdLocalSeoTrackerIdRoute
+  '/_app/p/$projectId/rank-tracking/$configId': typeof AppPProjectIdRankTrackingConfigIdRoute
+  '/_app/p/$projectId/reports/$reportId': typeof AppPProjectIdReportsReportIdRoute
+  '/_app/p/$projectId/reports/templates': typeof AppPProjectIdReportsTemplatesRoute
+  '/_app/p/$projectId/settings/context': typeof AppPProjectIdSettingsContextRoute
+  '/_app/p/$projectId/settings/integrations': typeof AppPProjectIdSettingsIntegrationsRoute
+  '/report-map/$grant/$z/$x/$y': typeof ReportMapGrantZXYRoute
+  '/_app/p/$projectId/ai-visibility/': typeof AppPProjectIdAiVisibilityIndexRoute
+  '/_app/p/$projectId/audit/': typeof AppPProjectIdAuditIndexRoute
+  '/_app/p/$projectId/local-seo/': typeof AppPProjectIdLocalSeoIndexRoute
+  '/_app/p/$projectId/rank-tracking/': typeof AppPProjectIdRankTrackingIndexRoute
+  '/_app/p/$projectId/reports/': typeof AppPProjectIdReportsIndexRoute
+  '/_app/p/$projectId/settings/': typeof AppPProjectIdSettingsIndexRoute
+  '/_app/p/$projectId/ai-visibility/prompts/$promptId': typeof AppPProjectIdAiVisibilityPromptsPromptIdRoute
+  '/_app/p/$projectId/audit/issues/$resultId': typeof AppPProjectIdAuditIssuesResultIdRoute
+  '/api/local-seo/maps/$projectId/$z/$x/$y': typeof ApiLocalSeoMapsProjectIdZXYRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/auth-error'
     | '/forgot-password'
     | '/reset-password'
     | '/verify-email'
+    | '/.well-known/http-message-signatures-directory'
     | '/.well-known/openai-apps-challenge'
     | '/ai'
     | '/billing'
@@ -385,70 +685,132 @@ export interface FileRouteTypes {
     | '/sign-up'
     | '/oauth-consent'
     | '/subscribe'
+    | '/yc'
+    | '/accept-invitation/$id'
+    | '/api/health'
+    | '/api/privacy-region'
+    | '/api/sign-up-status'
+    | '/r/$reportId'
     | '/p/$projectId'
+    | '/billing/fix-payment'
     | '/help/dataforseo-api-key'
-    | '/onboarding/chat'
+    | '/help/openrouter-api-key'
+    | '/settings/organization'
     | '/api/auth/$'
     | '/api/autumn/$'
+    | '/report-map/$grant/copyright'
+    | '/s/$token/og.png'
+    | '/s/$token/raw'
+    | '/settings/'
     | '/onboarding/'
-    | '/p/$projectId/audit'
+    | '/s/$token/'
+    | '/p/$projectId/ai-visibility'
     | '/p/$projectId/backlinks'
     | '/p/$projectId/brand-lookup'
+    | '/p/$projectId/context'
     | '/p/$projectId/domain'
     | '/p/$projectId/keywords'
+    | '/p/$projectId/local-seo'
     | '/p/$projectId/prompt-explorer'
     | '/p/$projectId/rank-tracking'
+    | '/p/$projectId/sam'
     | '/p/$projectId/saved'
+    | '/p/$projectId/search-performance'
     | '/p/$projectId/settings'
+    | '/api/ga4/oauth/callback'
     | '/api/gsc/oauth/callback'
     | '/p/$projectId/'
+    | '/p/$projectId/ai-visibility/research'
+    | '/p/$projectId/local-seo/$trackerId'
     | '/p/$projectId/rank-tracking/$configId'
+    | '/p/$projectId/reports/$reportId'
+    | '/p/$projectId/reports/templates'
+    | '/p/$projectId/settings/context'
+    | '/p/$projectId/settings/integrations'
+    | '/report-map/$grant/$z/$x/$y'
+    | '/p/$projectId/ai-visibility/'
     | '/p/$projectId/audit/'
+    | '/p/$projectId/local-seo/'
     | '/p/$projectId/rank-tracking/'
+    | '/p/$projectId/reports/'
+    | '/p/$projectId/settings/'
+    | '/p/$projectId/ai-visibility/prompts/$promptId'
     | '/p/$projectId/audit/issues/$resultId'
+    | '/api/local-seo/maps/$projectId/$z/$x/$y'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/auth-error'
     | '/forgot-password'
     | '/reset-password'
     | '/verify-email'
+    | '/.well-known/http-message-signatures-directory'
     | '/.well-known/openai-apps-challenge'
     | '/ai'
     | '/billing'
     | '/projects'
-    | '/settings'
     | '/support'
     | '/sign-in'
     | '/sign-up'
     | '/oauth-consent'
     | '/subscribe'
+    | '/yc'
+    | '/accept-invitation/$id'
+    | '/api/health'
+    | '/api/privacy-region'
+    | '/api/sign-up-status'
+    | '/r/$reportId'
+    | '/billing/fix-payment'
     | '/help/dataforseo-api-key'
-    | '/onboarding/chat'
+    | '/help/openrouter-api-key'
+    | '/settings/organization'
     | '/api/auth/$'
     | '/api/autumn/$'
+    | '/report-map/$grant/copyright'
+    | '/s/$token/og.png'
+    | '/s/$token/raw'
+    | '/settings'
     | '/onboarding'
+    | '/s/$token'
     | '/p/$projectId/backlinks'
     | '/p/$projectId/brand-lookup'
+    | '/p/$projectId/context'
     | '/p/$projectId/domain'
     | '/p/$projectId/keywords'
     | '/p/$projectId/prompt-explorer'
+    | '/p/$projectId/sam'
     | '/p/$projectId/saved'
-    | '/p/$projectId/settings'
+    | '/p/$projectId/search-performance'
+    | '/api/ga4/oauth/callback'
     | '/api/gsc/oauth/callback'
     | '/p/$projectId'
+    | '/p/$projectId/ai-visibility/research'
+    | '/p/$projectId/local-seo/$trackerId'
     | '/p/$projectId/rank-tracking/$configId'
+    | '/p/$projectId/reports/$reportId'
+    | '/p/$projectId/reports/templates'
+    | '/p/$projectId/settings/context'
+    | '/p/$projectId/settings/integrations'
+    | '/report-map/$grant/$z/$x/$y'
+    | '/p/$projectId/ai-visibility'
     | '/p/$projectId/audit'
+    | '/p/$projectId/local-seo'
     | '/p/$projectId/rank-tracking'
+    | '/p/$projectId/reports'
+    | '/p/$projectId/settings'
+    | '/p/$projectId/ai-visibility/prompts/$promptId'
     | '/p/$projectId/audit/issues/$resultId'
+    | '/api/local-seo/maps/$projectId/$z/$x/$y'
   id:
     | '__root__'
     | '/_app'
-    | '/_project'
     | '/_auth'
     | '/_authenticated'
+    | '/auth-error'
     | '/forgot-password'
     | '/reset-password'
     | '/verify-email'
+    | '/.well-known/http-message-signatures-directory'
     | '/.well-known/openai-apps-challenge'
     | '/_app/ai'
     | '/_app/billing'
@@ -459,72 +821,95 @@ export interface FileRouteTypes {
     | '/_auth/sign-up'
     | '/_authenticated/oauth-consent'
     | '/_authenticated/subscribe'
+    | '/_authenticated/yc'
+    | '/accept-invitation/$id'
+    | '/api/health'
+    | '/api/privacy-region'
+    | '/api/sign-up-status'
+    | '/r/$reportId'
     | '/_app/'
-    | '/_project/p/$projectId'
+    | '/_app/p/$projectId'
+    | '/_app/billing_/fix-payment'
     | '/_app/help/dataforseo-api-key'
-    | '/_authenticated/onboarding/chat'
+    | '/_app/help/openrouter-api-key'
+    | '/_app/settings/organization'
     | '/api/auth/$'
     | '/api/autumn/$'
+    | '/report-map/$grant/copyright'
+    | '/s/$token/og.png'
+    | '/s/$token/raw'
+    | '/_app/settings/'
     | '/_authenticated/onboarding/'
-    | '/_project/p/$projectId/audit'
-    | '/_project/p/$projectId/backlinks'
-    | '/_project/p/$projectId/brand-lookup'
-    | '/_project/p/$projectId/domain'
-    | '/_project/p/$projectId/keywords'
-    | '/_project/p/$projectId/prompt-explorer'
-    | '/_project/p/$projectId/rank-tracking'
-    | '/_project/p/$projectId/saved'
-    | '/_project/p/$projectId/settings'
+    | '/s/$token/'
+    | '/_app/p/$projectId/ai-visibility'
+    | '/_app/p/$projectId/backlinks'
+    | '/_app/p/$projectId/brand-lookup'
+    | '/_app/p/$projectId/context'
+    | '/_app/p/$projectId/domain'
+    | '/_app/p/$projectId/keywords'
+    | '/_app/p/$projectId/local-seo'
+    | '/_app/p/$projectId/prompt-explorer'
+    | '/_app/p/$projectId/rank-tracking'
+    | '/_app/p/$projectId/sam'
+    | '/_app/p/$projectId/saved'
+    | '/_app/p/$projectId/search-performance'
+    | '/_app/p/$projectId/settings'
+    | '/api/ga4/oauth/callback'
     | '/api/gsc/oauth/callback'
-    | '/_project/p/$projectId/'
-    | '/_project/p/$projectId/rank-tracking/$configId'
-    | '/_project/p/$projectId/audit/'
-    | '/_project/p/$projectId/rank-tracking/'
-    | '/_project/p/$projectId/audit/issues/$resultId'
+    | '/_app/p/$projectId/'
+    | '/_app/p/$projectId/ai-visibility/research'
+    | '/_app/p/$projectId/local-seo/$trackerId'
+    | '/_app/p/$projectId/rank-tracking/$configId'
+    | '/_app/p/$projectId/reports/$reportId'
+    | '/_app/p/$projectId/reports/templates'
+    | '/_app/p/$projectId/settings/context'
+    | '/_app/p/$projectId/settings/integrations'
+    | '/report-map/$grant/$z/$x/$y'
+    | '/_app/p/$projectId/ai-visibility/'
+    | '/_app/p/$projectId/audit/'
+    | '/_app/p/$projectId/local-seo/'
+    | '/_app/p/$projectId/rank-tracking/'
+    | '/_app/p/$projectId/reports/'
+    | '/_app/p/$projectId/settings/'
+    | '/_app/p/$projectId/ai-visibility/prompts/$promptId'
+    | '/_app/p/$projectId/audit/issues/$resultId'
+    | '/api/local-seo/maps/$projectId/$z/$x/$y'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   AppRouteRoute: typeof AppRouteRouteWithChildren
-  ProjectRouteRoute: typeof ProjectRouteRouteWithChildren
   AuthRoute: typeof AuthRouteWithChildren
   AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
+  AuthErrorRoute: typeof AuthErrorRoute
   ForgotPasswordRoute: typeof ForgotPasswordRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   VerifyEmailRoute: typeof VerifyEmailRoute
+  Char91DotwellKnownChar93HttpMessageSignaturesDirectoryRoute: typeof Char91DotwellKnownChar93HttpMessageSignaturesDirectoryRoute
   Char91DotwellKnownChar93OpenaiAppsChallengeRoute: typeof Char91DotwellKnownChar93OpenaiAppsChallengeRoute
+  AcceptInvitationIdRoute: typeof AcceptInvitationIdRoute
+  ApiHealthRoute: typeof ApiHealthRoute
+  ApiPrivacyRegionRoute: typeof ApiPrivacyRegionRoute
+  ApiSignUpStatusRoute: typeof ApiSignUpStatusRoute
+  RReportIdRoute: typeof RReportIdRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiAutumnSplatRoute: typeof ApiAutumnSplatRoute
+  ReportMapGrantCopyrightRoute: typeof ReportMapGrantCopyrightRoute
+  STokenOgDotpngRoute: typeof STokenOgDotpngRoute
+  STokenRawRoute: typeof STokenRawRoute
+  STokenIndexRoute: typeof STokenIndexRoute
+  ApiGa4OauthCallbackRoute: typeof ApiGa4OauthCallbackRoute
   ApiGscOauthCallbackRoute: typeof ApiGscOauthCallbackRoute
+  ReportMapGrantZXYRoute: typeof ReportMapGrantZXYRoute
+  ApiLocalSeoMapsProjectIdZXYRoute: typeof ApiLocalSeoMapsProjectIdZXYRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/verify-email': {
-      id: '/verify-email'
-      path: '/verify-email'
-      fullPath: '/verify-email'
-      preLoaderRoute: typeof VerifyEmailRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/reset-password': {
-      id: '/reset-password'
-      path: '/reset-password'
-      fullPath: '/reset-password'
-      preLoaderRoute: typeof ResetPasswordRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/forgot-password': {
-      id: '/forgot-password'
-      path: '/forgot-password'
-      fullPath: '/forgot-password'
-      preLoaderRoute: typeof ForgotPasswordRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/_authenticated': {
-      id: '/_authenticated'
+    '/_app': {
+      id: '/_app'
       path: ''
       fullPath: '/'
-      preLoaderRoute: typeof AuthenticatedRouteImport
+      preLoaderRoute: typeof AppRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_auth': {
@@ -534,18 +919,53 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_project': {
-      id: '/_project'
+    '/_authenticated': {
+      id: '/_authenticated'
       path: ''
       fullPath: '/'
-      preLoaderRoute: typeof ProjectRouteRouteImport
+      preLoaderRoute: typeof AuthenticatedRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_app': {
-      id: '/_app'
-      path: ''
-      fullPath: '/'
-      preLoaderRoute: typeof AppRouteRouteImport
+    '/auth-error': {
+      id: '/auth-error'
+      path: '/auth-error'
+      fullPath: '/auth-error'
+      preLoaderRoute: typeof AuthErrorRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/forgot-password': {
+      id: '/forgot-password'
+      path: '/forgot-password'
+      fullPath: '/forgot-password'
+      preLoaderRoute: typeof ForgotPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reset-password': {
+      id: '/reset-password'
+      path: '/reset-password'
+      fullPath: '/reset-password'
+      preLoaderRoute: typeof ResetPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/verify-email': {
+      id: '/verify-email'
+      path: '/verify-email'
+      fullPath: '/verify-email'
+      preLoaderRoute: typeof VerifyEmailRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/.well-known/http-message-signatures-directory': {
+      id: '/.well-known/http-message-signatures-directory'
+      path: '/.well-known/http-message-signatures-directory'
+      fullPath: '/.well-known/http-message-signatures-directory'
+      preLoaderRoute: typeof Char91DotwellKnownChar93HttpMessageSignaturesDirectoryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/.well-known/openai-apps-challenge': {
+      id: '/.well-known/openai-apps-challenge'
+      path: '/.well-known/openai-apps-challenge'
+      fullPath: '/.well-known/openai-apps-challenge'
+      preLoaderRoute: typeof Char91DotwellKnownChar93OpenaiAppsChallengeRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_app/': {
@@ -555,53 +975,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppIndexRouteImport
       parentRoute: typeof AppRouteRoute
     }
-    '/_authenticated/subscribe': {
-      id: '/_authenticated/subscribe'
-      path: '/subscribe'
-      fullPath: '/subscribe'
-      preLoaderRoute: typeof AuthenticatedSubscribeRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/oauth-consent': {
-      id: '/_authenticated/oauth-consent'
-      path: '/oauth-consent'
-      fullPath: '/oauth-consent'
-      preLoaderRoute: typeof AuthenticatedOauthConsentRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_auth/sign-up': {
-      id: '/_auth/sign-up'
-      path: '/sign-up'
-      fullPath: '/sign-up'
-      preLoaderRoute: typeof AuthSignUpRouteImport
-      parentRoute: typeof AuthRoute
-    }
-    '/_auth/sign-in': {
-      id: '/_auth/sign-in'
-      path: '/sign-in'
-      fullPath: '/sign-in'
-      preLoaderRoute: typeof AuthSignInRouteImport
-      parentRoute: typeof AuthRoute
-    }
-    '/_app/support': {
-      id: '/_app/support'
-      path: '/support'
-      fullPath: '/support'
-      preLoaderRoute: typeof AppSupportRouteImport
-      parentRoute: typeof AppRouteRoute
-    }
-    '/_app/settings': {
-      id: '/_app/settings'
-      path: '/settings'
-      fullPath: '/settings'
-      preLoaderRoute: typeof AppSettingsRouteImport
-      parentRoute: typeof AppRouteRoute
-    }
-    '/_app/projects': {
-      id: '/_app/projects'
-      path: '/projects'
-      fullPath: '/projects'
-      preLoaderRoute: typeof AppProjectsRouteImport
+    '/_app/ai': {
+      id: '/_app/ai'
+      path: '/ai'
+      fullPath: '/ai'
+      preLoaderRoute: typeof AppAiRouteImport
       parentRoute: typeof AppRouteRoute
     }
     '/_app/billing': {
@@ -611,47 +989,103 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppBillingRouteImport
       parentRoute: typeof AppRouteRoute
     }
-    '/_app/ai': {
-      id: '/_app/ai'
-      path: '/ai'
-      fullPath: '/ai'
-      preLoaderRoute: typeof AppAiRouteImport
+    '/_app/projects': {
+      id: '/_app/projects'
+      path: '/projects'
+      fullPath: '/projects'
+      preLoaderRoute: typeof AppProjectsRouteImport
       parentRoute: typeof AppRouteRoute
     }
-    '/.well-known/openai-apps-challenge': {
-      id: '/.well-known/openai-apps-challenge'
-      path: '/.well-known/openai-apps-challenge'
-      fullPath: '/.well-known/openai-apps-challenge'
-      preLoaderRoute: typeof Char91DotwellKnownChar93OpenaiAppsChallengeRouteImport
-      parentRoute: typeof rootRouteImport
+    '/_app/settings': {
+      id: '/_app/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof AppSettingsRouteImport
+      parentRoute: typeof AppRouteRoute
     }
-    '/_authenticated/onboarding/': {
-      id: '/_authenticated/onboarding/'
-      path: '/onboarding'
-      fullPath: '/onboarding/'
-      preLoaderRoute: typeof AuthenticatedOnboardingIndexRouteImport
+    '/_app/support': {
+      id: '/_app/support'
+      path: '/support'
+      fullPath: '/support'
+      preLoaderRoute: typeof AppSupportRouteImport
+      parentRoute: typeof AppRouteRoute
+    }
+    '/_auth/sign-in': {
+      id: '/_auth/sign-in'
+      path: '/sign-in'
+      fullPath: '/sign-in'
+      preLoaderRoute: typeof AuthSignInRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/_auth/sign-up': {
+      id: '/_auth/sign-up'
+      path: '/sign-up'
+      fullPath: '/sign-up'
+      preLoaderRoute: typeof AuthSignUpRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/_authenticated/oauth-consent': {
+      id: '/_authenticated/oauth-consent'
+      path: '/oauth-consent'
+      fullPath: '/oauth-consent'
+      preLoaderRoute: typeof AuthenticatedOauthConsentRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
-    '/api/autumn/$': {
-      id: '/api/autumn/$'
-      path: '/api/autumn/$'
-      fullPath: '/api/autumn/$'
-      preLoaderRoute: typeof ApiAutumnSplatRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/auth/$': {
-      id: '/api/auth/$'
-      path: '/api/auth/$'
-      fullPath: '/api/auth/$'
-      preLoaderRoute: typeof ApiAuthSplatRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/_authenticated/onboarding/chat': {
-      id: '/_authenticated/onboarding/chat'
-      path: '/onboarding/chat'
-      fullPath: '/onboarding/chat'
-      preLoaderRoute: typeof AuthenticatedOnboardingChatRouteImport
+    '/_authenticated/subscribe': {
+      id: '/_authenticated/subscribe'
+      path: '/subscribe'
+      fullPath: '/subscribe'
+      preLoaderRoute: typeof AuthenticatedSubscribeRouteImport
       parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/yc': {
+      id: '/_authenticated/yc'
+      path: '/yc'
+      fullPath: '/yc'
+      preLoaderRoute: typeof AuthenticatedYcRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/accept-invitation/$id': {
+      id: '/accept-invitation/$id'
+      path: '/accept-invitation/$id'
+      fullPath: '/accept-invitation/$id'
+      preLoaderRoute: typeof AcceptInvitationIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/health': {
+      id: '/api/health'
+      path: '/api/health'
+      fullPath: '/api/health'
+      preLoaderRoute: typeof ApiHealthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/privacy-region': {
+      id: '/api/privacy-region'
+      path: '/api/privacy-region'
+      fullPath: '/api/privacy-region'
+      preLoaderRoute: typeof ApiPrivacyRegionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/sign-up-status': {
+      id: '/api/sign-up-status'
+      path: '/api/sign-up-status'
+      fullPath: '/api/sign-up-status'
+      preLoaderRoute: typeof ApiSignUpStatusRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/r/$reportId': {
+      id: '/r/$reportId'
+      path: '/r/$reportId'
+      fullPath: '/r/$reportId'
+      preLoaderRoute: typeof RReportIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_app/billing_/fix-payment': {
+      id: '/_app/billing_/fix-payment'
+      path: '/billing/fix-payment'
+      fullPath: '/billing/fix-payment'
+      preLoaderRoute: typeof AppBillingFixPaymentRouteImport
+      parentRoute: typeof AppRouteRoute
     }
     '/_app/help/dataforseo-api-key': {
       id: '/_app/help/dataforseo-api-key'
@@ -660,19 +1094,187 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppHelpDataforseoApiKeyRouteImport
       parentRoute: typeof AppRouteRoute
     }
-    '/_project/p/$projectId': {
-      id: '/_project/p/$projectId'
+    '/_app/help/openrouter-api-key': {
+      id: '/_app/help/openrouter-api-key'
+      path: '/help/openrouter-api-key'
+      fullPath: '/help/openrouter-api-key'
+      preLoaderRoute: typeof AppHelpOpenrouterApiKeyRouteImport
+      parentRoute: typeof AppRouteRoute
+    }
+    '/_app/p/$projectId': {
+      id: '/_app/p/$projectId'
       path: '/p/$projectId'
       fullPath: '/p/$projectId'
-      preLoaderRoute: typeof ProjectPProjectIdRouteRouteImport
-      parentRoute: typeof ProjectRouteRoute
+      preLoaderRoute: typeof AppPProjectIdRouteRouteImport
+      parentRoute: typeof AppRouteRoute
     }
-    '/_project/p/$projectId/': {
-      id: '/_project/p/$projectId/'
+    '/_app/settings/': {
+      id: '/_app/settings/'
+      path: '/'
+      fullPath: '/settings/'
+      preLoaderRoute: typeof AppSettingsIndexRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
+    '/_app/settings/organization': {
+      id: '/_app/settings/organization'
+      path: '/organization'
+      fullPath: '/settings/organization'
+      preLoaderRoute: typeof AppSettingsOrganizationRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
+    '/_authenticated/onboarding/': {
+      id: '/_authenticated/onboarding/'
+      path: '/onboarding'
+      fullPath: '/onboarding/'
+      preLoaderRoute: typeof AuthenticatedOnboardingIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/api/auth/$': {
+      id: '/api/auth/$'
+      path: '/api/auth/$'
+      fullPath: '/api/auth/$'
+      preLoaderRoute: typeof ApiAuthSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/autumn/$': {
+      id: '/api/autumn/$'
+      path: '/api/autumn/$'
+      fullPath: '/api/autumn/$'
+      preLoaderRoute: typeof ApiAutumnSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/report-map/$grant/copyright': {
+      id: '/report-map/$grant/copyright'
+      path: '/report-map/$grant/copyright'
+      fullPath: '/report-map/$grant/copyright'
+      preLoaderRoute: typeof ReportMapGrantCopyrightRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/s/$token/': {
+      id: '/s/$token/'
+      path: '/s/$token'
+      fullPath: '/s/$token/'
+      preLoaderRoute: typeof STokenIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/s/$token/og.png': {
+      id: '/s/$token/og.png'
+      path: '/s/$token/og.png'
+      fullPath: '/s/$token/og.png'
+      preLoaderRoute: typeof STokenOgDotpngRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/s/$token/raw': {
+      id: '/s/$token/raw'
+      path: '/s/$token/raw'
+      fullPath: '/s/$token/raw'
+      preLoaderRoute: typeof STokenRawRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_app/p/$projectId/': {
+      id: '/_app/p/$projectId/'
       path: '/'
       fullPath: '/p/$projectId/'
-      preLoaderRoute: typeof ProjectPProjectIdIndexRouteImport
-      parentRoute: typeof ProjectPProjectIdRouteRoute
+      preLoaderRoute: typeof AppPProjectIdIndexRouteImport
+      parentRoute: typeof AppPProjectIdRouteRoute
+    }
+    '/_app/p/$projectId/ai-visibility': {
+      id: '/_app/p/$projectId/ai-visibility'
+      path: '/ai-visibility'
+      fullPath: '/p/$projectId/ai-visibility'
+      preLoaderRoute: typeof AppPProjectIdAiVisibilityRouteImport
+      parentRoute: typeof AppPProjectIdRouteRoute
+    }
+    '/_app/p/$projectId/backlinks': {
+      id: '/_app/p/$projectId/backlinks'
+      path: '/backlinks'
+      fullPath: '/p/$projectId/backlinks'
+      preLoaderRoute: typeof AppPProjectIdBacklinksRouteImport
+      parentRoute: typeof AppPProjectIdRouteRoute
+    }
+    '/_app/p/$projectId/brand-lookup': {
+      id: '/_app/p/$projectId/brand-lookup'
+      path: '/brand-lookup'
+      fullPath: '/p/$projectId/brand-lookup'
+      preLoaderRoute: typeof AppPProjectIdBrandLookupRouteImport
+      parentRoute: typeof AppPProjectIdRouteRoute
+    }
+    '/_app/p/$projectId/context': {
+      id: '/_app/p/$projectId/context'
+      path: '/context'
+      fullPath: '/p/$projectId/context'
+      preLoaderRoute: typeof AppPProjectIdContextRouteImport
+      parentRoute: typeof AppPProjectIdRouteRoute
+    }
+    '/_app/p/$projectId/domain': {
+      id: '/_app/p/$projectId/domain'
+      path: '/domain'
+      fullPath: '/p/$projectId/domain'
+      preLoaderRoute: typeof AppPProjectIdDomainRouteImport
+      parentRoute: typeof AppPProjectIdRouteRoute
+    }
+    '/_app/p/$projectId/keywords': {
+      id: '/_app/p/$projectId/keywords'
+      path: '/keywords'
+      fullPath: '/p/$projectId/keywords'
+      preLoaderRoute: typeof AppPProjectIdKeywordsRouteImport
+      parentRoute: typeof AppPProjectIdRouteRoute
+    }
+    '/_app/p/$projectId/local-seo': {
+      id: '/_app/p/$projectId/local-seo'
+      path: '/local-seo'
+      fullPath: '/p/$projectId/local-seo'
+      preLoaderRoute: typeof AppPProjectIdLocalSeoRouteImport
+      parentRoute: typeof AppPProjectIdRouteRoute
+    }
+    '/_app/p/$projectId/prompt-explorer': {
+      id: '/_app/p/$projectId/prompt-explorer'
+      path: '/prompt-explorer'
+      fullPath: '/p/$projectId/prompt-explorer'
+      preLoaderRoute: typeof AppPProjectIdPromptExplorerRouteImport
+      parentRoute: typeof AppPProjectIdRouteRoute
+    }
+    '/_app/p/$projectId/rank-tracking': {
+      id: '/_app/p/$projectId/rank-tracking'
+      path: '/rank-tracking'
+      fullPath: '/p/$projectId/rank-tracking'
+      preLoaderRoute: typeof AppPProjectIdRankTrackingRouteImport
+      parentRoute: typeof AppPProjectIdRouteRoute
+    }
+    '/_app/p/$projectId/sam': {
+      id: '/_app/p/$projectId/sam'
+      path: '/sam'
+      fullPath: '/p/$projectId/sam'
+      preLoaderRoute: typeof AppPProjectIdSamRouteImport
+      parentRoute: typeof AppPProjectIdRouteRoute
+    }
+    '/_app/p/$projectId/saved': {
+      id: '/_app/p/$projectId/saved'
+      path: '/saved'
+      fullPath: '/p/$projectId/saved'
+      preLoaderRoute: typeof AppPProjectIdSavedRouteImport
+      parentRoute: typeof AppPProjectIdRouteRoute
+    }
+    '/_app/p/$projectId/search-performance': {
+      id: '/_app/p/$projectId/search-performance'
+      path: '/search-performance'
+      fullPath: '/p/$projectId/search-performance'
+      preLoaderRoute: typeof AppPProjectIdSearchPerformanceRouteImport
+      parentRoute: typeof AppPProjectIdRouteRoute
+    }
+    '/_app/p/$projectId/settings': {
+      id: '/_app/p/$projectId/settings'
+      path: '/settings'
+      fullPath: '/p/$projectId/settings'
+      preLoaderRoute: typeof AppPProjectIdSettingsRouteImport
+      parentRoute: typeof AppPProjectIdRouteRoute
+    }
+    '/api/ga4/oauth/callback': {
+      id: '/api/ga4/oauth/callback'
+      path: '/api/ga4/oauth/callback'
+      fullPath: '/api/ga4/oauth/callback'
+      preLoaderRoute: typeof ApiGa4OauthCallbackRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/api/gsc/oauth/callback': {
       id: '/api/gsc/oauth/callback'
@@ -681,202 +1283,287 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiGscOauthCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_project/p/$projectId/settings': {
-      id: '/_project/p/$projectId/settings'
-      path: '/settings'
-      fullPath: '/p/$projectId/settings'
-      preLoaderRoute: typeof ProjectPProjectIdSettingsRouteImport
-      parentRoute: typeof ProjectPProjectIdRouteRoute
+    '/_app/p/$projectId/ai-visibility/': {
+      id: '/_app/p/$projectId/ai-visibility/'
+      path: '/'
+      fullPath: '/p/$projectId/ai-visibility/'
+      preLoaderRoute: typeof AppPProjectIdAiVisibilityIndexRouteImport
+      parentRoute: typeof AppPProjectIdAiVisibilityRoute
     }
-    '/_project/p/$projectId/saved': {
-      id: '/_project/p/$projectId/saved'
-      path: '/saved'
-      fullPath: '/p/$projectId/saved'
-      preLoaderRoute: typeof ProjectPProjectIdSavedRouteImport
-      parentRoute: typeof ProjectPProjectIdRouteRoute
+    '/_app/p/$projectId/ai-visibility/research': {
+      id: '/_app/p/$projectId/ai-visibility/research'
+      path: '/research'
+      fullPath: '/p/$projectId/ai-visibility/research'
+      preLoaderRoute: typeof AppPProjectIdAiVisibilityResearchRouteImport
+      parentRoute: typeof AppPProjectIdAiVisibilityRoute
     }
-    '/_project/p/$projectId/rank-tracking': {
-      id: '/_project/p/$projectId/rank-tracking'
-      path: '/rank-tracking'
-      fullPath: '/p/$projectId/rank-tracking'
-      preLoaderRoute: typeof ProjectPProjectIdRankTrackingRouteImport
-      parentRoute: typeof ProjectPProjectIdRouteRoute
-    }
-    '/_project/p/$projectId/prompt-explorer': {
-      id: '/_project/p/$projectId/prompt-explorer'
-      path: '/prompt-explorer'
-      fullPath: '/p/$projectId/prompt-explorer'
-      preLoaderRoute: typeof ProjectPProjectIdPromptExplorerRouteImport
-      parentRoute: typeof ProjectPProjectIdRouteRoute
-    }
-    '/_project/p/$projectId/keywords': {
-      id: '/_project/p/$projectId/keywords'
-      path: '/keywords'
-      fullPath: '/p/$projectId/keywords'
-      preLoaderRoute: typeof ProjectPProjectIdKeywordsRouteImport
-      parentRoute: typeof ProjectPProjectIdRouteRoute
-    }
-    '/_project/p/$projectId/domain': {
-      id: '/_project/p/$projectId/domain'
-      path: '/domain'
-      fullPath: '/p/$projectId/domain'
-      preLoaderRoute: typeof ProjectPProjectIdDomainRouteImport
-      parentRoute: typeof ProjectPProjectIdRouteRoute
-    }
-    '/_project/p/$projectId/brand-lookup': {
-      id: '/_project/p/$projectId/brand-lookup'
-      path: '/brand-lookup'
-      fullPath: '/p/$projectId/brand-lookup'
-      preLoaderRoute: typeof ProjectPProjectIdBrandLookupRouteImport
-      parentRoute: typeof ProjectPProjectIdRouteRoute
-    }
-    '/_project/p/$projectId/backlinks': {
-      id: '/_project/p/$projectId/backlinks'
-      path: '/backlinks'
-      fullPath: '/p/$projectId/backlinks'
-      preLoaderRoute: typeof ProjectPProjectIdBacklinksRouteImport
-      parentRoute: typeof ProjectPProjectIdRouteRoute
-    }
-    '/_project/p/$projectId/audit': {
-      id: '/_project/p/$projectId/audit'
+    '/_app/p/$projectId/audit/': {
+      id: '/_app/p/$projectId/audit/'
       path: '/audit'
-      fullPath: '/p/$projectId/audit'
-      preLoaderRoute: typeof ProjectPProjectIdAuditRouteImport
-      parentRoute: typeof ProjectPProjectIdRouteRoute
+      fullPath: '/p/$projectId/audit/'
+      preLoaderRoute: typeof AppPProjectIdAuditIndexRouteImport
+      parentRoute: typeof AppPProjectIdRouteRoute
     }
-    '/_project/p/$projectId/rank-tracking/': {
-      id: '/_project/p/$projectId/rank-tracking/'
+    '/_app/p/$projectId/local-seo/': {
+      id: '/_app/p/$projectId/local-seo/'
+      path: '/'
+      fullPath: '/p/$projectId/local-seo/'
+      preLoaderRoute: typeof AppPProjectIdLocalSeoIndexRouteImport
+      parentRoute: typeof AppPProjectIdLocalSeoRoute
+    }
+    '/_app/p/$projectId/local-seo/$trackerId': {
+      id: '/_app/p/$projectId/local-seo/$trackerId'
+      path: '/$trackerId'
+      fullPath: '/p/$projectId/local-seo/$trackerId'
+      preLoaderRoute: typeof AppPProjectIdLocalSeoTrackerIdRouteImport
+      parentRoute: typeof AppPProjectIdLocalSeoRoute
+    }
+    '/_app/p/$projectId/rank-tracking/': {
+      id: '/_app/p/$projectId/rank-tracking/'
       path: '/'
       fullPath: '/p/$projectId/rank-tracking/'
-      preLoaderRoute: typeof ProjectPProjectIdRankTrackingIndexRouteImport
-      parentRoute: typeof ProjectPProjectIdRankTrackingRoute
+      preLoaderRoute: typeof AppPProjectIdRankTrackingIndexRouteImport
+      parentRoute: typeof AppPProjectIdRankTrackingRoute
     }
-    '/_project/p/$projectId/audit/': {
-      id: '/_project/p/$projectId/audit/'
-      path: '/'
-      fullPath: '/p/$projectId/audit/'
-      preLoaderRoute: typeof ProjectPProjectIdAuditIndexRouteImport
-      parentRoute: typeof ProjectPProjectIdAuditRoute
-    }
-    '/_project/p/$projectId/rank-tracking/$configId': {
-      id: '/_project/p/$projectId/rank-tracking/$configId'
+    '/_app/p/$projectId/rank-tracking/$configId': {
+      id: '/_app/p/$projectId/rank-tracking/$configId'
       path: '/$configId'
       fullPath: '/p/$projectId/rank-tracking/$configId'
-      preLoaderRoute: typeof ProjectPProjectIdRankTrackingConfigIdRouteImport
-      parentRoute: typeof ProjectPProjectIdRankTrackingRoute
+      preLoaderRoute: typeof AppPProjectIdRankTrackingConfigIdRouteImport
+      parentRoute: typeof AppPProjectIdRankTrackingRoute
     }
-    '/_project/p/$projectId/audit/issues/$resultId': {
-      id: '/_project/p/$projectId/audit/issues/$resultId'
-      path: '/issues/$resultId'
+    '/_app/p/$projectId/reports/': {
+      id: '/_app/p/$projectId/reports/'
+      path: '/reports'
+      fullPath: '/p/$projectId/reports/'
+      preLoaderRoute: typeof AppPProjectIdReportsIndexRouteImport
+      parentRoute: typeof AppPProjectIdRouteRoute
+    }
+    '/_app/p/$projectId/reports/$reportId': {
+      id: '/_app/p/$projectId/reports/$reportId'
+      path: '/reports/$reportId'
+      fullPath: '/p/$projectId/reports/$reportId'
+      preLoaderRoute: typeof AppPProjectIdReportsReportIdRouteImport
+      parentRoute: typeof AppPProjectIdRouteRoute
+    }
+    '/_app/p/$projectId/reports/templates': {
+      id: '/_app/p/$projectId/reports/templates'
+      path: '/reports/templates'
+      fullPath: '/p/$projectId/reports/templates'
+      preLoaderRoute: typeof AppPProjectIdReportsTemplatesRouteImport
+      parentRoute: typeof AppPProjectIdRouteRoute
+    }
+    '/_app/p/$projectId/settings/': {
+      id: '/_app/p/$projectId/settings/'
+      path: '/'
+      fullPath: '/p/$projectId/settings/'
+      preLoaderRoute: typeof AppPProjectIdSettingsIndexRouteImport
+      parentRoute: typeof AppPProjectIdSettingsRoute
+    }
+    '/_app/p/$projectId/settings/context': {
+      id: '/_app/p/$projectId/settings/context'
+      path: '/context'
+      fullPath: '/p/$projectId/settings/context'
+      preLoaderRoute: typeof AppPProjectIdSettingsContextRouteImport
+      parentRoute: typeof AppPProjectIdSettingsRoute
+    }
+    '/_app/p/$projectId/settings/integrations': {
+      id: '/_app/p/$projectId/settings/integrations'
+      path: '/integrations'
+      fullPath: '/p/$projectId/settings/integrations'
+      preLoaderRoute: typeof AppPProjectIdSettingsIntegrationsRouteImport
+      parentRoute: typeof AppPProjectIdSettingsRoute
+    }
+    '/report-map/$grant/$z/$x/$y': {
+      id: '/report-map/$grant/$z/$x/$y'
+      path: '/report-map/$grant/$z/$x/$y'
+      fullPath: '/report-map/$grant/$z/$x/$y'
+      preLoaderRoute: typeof ReportMapGrantZXYRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_app/p/$projectId/ai-visibility/prompts/$promptId': {
+      id: '/_app/p/$projectId/ai-visibility/prompts/$promptId'
+      path: '/prompts/$promptId'
+      fullPath: '/p/$projectId/ai-visibility/prompts/$promptId'
+      preLoaderRoute: typeof AppPProjectIdAiVisibilityPromptsPromptIdRouteImport
+      parentRoute: typeof AppPProjectIdAiVisibilityRoute
+    }
+    '/_app/p/$projectId/audit/issues/$resultId': {
+      id: '/_app/p/$projectId/audit/issues/$resultId'
+      path: '/audit/issues/$resultId'
       fullPath: '/p/$projectId/audit/issues/$resultId'
-      preLoaderRoute: typeof ProjectPProjectIdAuditIssuesResultIdRouteImport
-      parentRoute: typeof ProjectPProjectIdAuditRoute
+      preLoaderRoute: typeof AppPProjectIdAuditIssuesResultIdRouteImport
+      parentRoute: typeof AppPProjectIdRouteRoute
+    }
+    '/api/local-seo/maps/$projectId/$z/$x/$y': {
+      id: '/api/local-seo/maps/$projectId/$z/$x/$y'
+      path: '/api/local-seo/maps/$projectId/$z/$x/$y'
+      fullPath: '/api/local-seo/maps/$projectId/$z/$x/$y'
+      preLoaderRoute: typeof ApiLocalSeoMapsProjectIdZXYRouteImport
+      parentRoute: typeof rootRouteImport
     }
   }
 }
+
+interface AppSettingsRouteChildren {
+  AppSettingsOrganizationRoute: typeof AppSettingsOrganizationRoute
+  AppSettingsIndexRoute: typeof AppSettingsIndexRoute
+}
+
+const AppSettingsRouteChildren: AppSettingsRouteChildren = {
+  AppSettingsOrganizationRoute: AppSettingsOrganizationRoute,
+  AppSettingsIndexRoute: AppSettingsIndexRoute,
+}
+
+const AppSettingsRouteWithChildren = AppSettingsRoute._addFileChildren(
+  AppSettingsRouteChildren,
+)
+
+interface AppPProjectIdAiVisibilityRouteChildren {
+  AppPProjectIdAiVisibilityResearchRoute: typeof AppPProjectIdAiVisibilityResearchRoute
+  AppPProjectIdAiVisibilityIndexRoute: typeof AppPProjectIdAiVisibilityIndexRoute
+  AppPProjectIdAiVisibilityPromptsPromptIdRoute: typeof AppPProjectIdAiVisibilityPromptsPromptIdRoute
+}
+
+const AppPProjectIdAiVisibilityRouteChildren: AppPProjectIdAiVisibilityRouteChildren =
+  {
+    AppPProjectIdAiVisibilityResearchRoute:
+      AppPProjectIdAiVisibilityResearchRoute,
+    AppPProjectIdAiVisibilityIndexRoute: AppPProjectIdAiVisibilityIndexRoute,
+    AppPProjectIdAiVisibilityPromptsPromptIdRoute:
+      AppPProjectIdAiVisibilityPromptsPromptIdRoute,
+  }
+
+const AppPProjectIdAiVisibilityRouteWithChildren =
+  AppPProjectIdAiVisibilityRoute._addFileChildren(
+    AppPProjectIdAiVisibilityRouteChildren,
+  )
+
+interface AppPProjectIdLocalSeoRouteChildren {
+  AppPProjectIdLocalSeoTrackerIdRoute: typeof AppPProjectIdLocalSeoTrackerIdRoute
+  AppPProjectIdLocalSeoIndexRoute: typeof AppPProjectIdLocalSeoIndexRoute
+}
+
+const AppPProjectIdLocalSeoRouteChildren: AppPProjectIdLocalSeoRouteChildren = {
+  AppPProjectIdLocalSeoTrackerIdRoute: AppPProjectIdLocalSeoTrackerIdRoute,
+  AppPProjectIdLocalSeoIndexRoute: AppPProjectIdLocalSeoIndexRoute,
+}
+
+const AppPProjectIdLocalSeoRouteWithChildren =
+  AppPProjectIdLocalSeoRoute._addFileChildren(
+    AppPProjectIdLocalSeoRouteChildren,
+  )
+
+interface AppPProjectIdRankTrackingRouteChildren {
+  AppPProjectIdRankTrackingConfigIdRoute: typeof AppPProjectIdRankTrackingConfigIdRoute
+  AppPProjectIdRankTrackingIndexRoute: typeof AppPProjectIdRankTrackingIndexRoute
+}
+
+const AppPProjectIdRankTrackingRouteChildren: AppPProjectIdRankTrackingRouteChildren =
+  {
+    AppPProjectIdRankTrackingConfigIdRoute:
+      AppPProjectIdRankTrackingConfigIdRoute,
+    AppPProjectIdRankTrackingIndexRoute: AppPProjectIdRankTrackingIndexRoute,
+  }
+
+const AppPProjectIdRankTrackingRouteWithChildren =
+  AppPProjectIdRankTrackingRoute._addFileChildren(
+    AppPProjectIdRankTrackingRouteChildren,
+  )
+
+interface AppPProjectIdSettingsRouteChildren {
+  AppPProjectIdSettingsContextRoute: typeof AppPProjectIdSettingsContextRoute
+  AppPProjectIdSettingsIntegrationsRoute: typeof AppPProjectIdSettingsIntegrationsRoute
+  AppPProjectIdSettingsIndexRoute: typeof AppPProjectIdSettingsIndexRoute
+}
+
+const AppPProjectIdSettingsRouteChildren: AppPProjectIdSettingsRouteChildren = {
+  AppPProjectIdSettingsContextRoute: AppPProjectIdSettingsContextRoute,
+  AppPProjectIdSettingsIntegrationsRoute:
+    AppPProjectIdSettingsIntegrationsRoute,
+  AppPProjectIdSettingsIndexRoute: AppPProjectIdSettingsIndexRoute,
+}
+
+const AppPProjectIdSettingsRouteWithChildren =
+  AppPProjectIdSettingsRoute._addFileChildren(
+    AppPProjectIdSettingsRouteChildren,
+  )
+
+interface AppPProjectIdRouteRouteChildren {
+  AppPProjectIdAiVisibilityRoute: typeof AppPProjectIdAiVisibilityRouteWithChildren
+  AppPProjectIdBacklinksRoute: typeof AppPProjectIdBacklinksRoute
+  AppPProjectIdBrandLookupRoute: typeof AppPProjectIdBrandLookupRoute
+  AppPProjectIdContextRoute: typeof AppPProjectIdContextRoute
+  AppPProjectIdDomainRoute: typeof AppPProjectIdDomainRoute
+  AppPProjectIdKeywordsRoute: typeof AppPProjectIdKeywordsRoute
+  AppPProjectIdLocalSeoRoute: typeof AppPProjectIdLocalSeoRouteWithChildren
+  AppPProjectIdPromptExplorerRoute: typeof AppPProjectIdPromptExplorerRoute
+  AppPProjectIdRankTrackingRoute: typeof AppPProjectIdRankTrackingRouteWithChildren
+  AppPProjectIdSamRoute: typeof AppPProjectIdSamRoute
+  AppPProjectIdSavedRoute: typeof AppPProjectIdSavedRoute
+  AppPProjectIdSearchPerformanceRoute: typeof AppPProjectIdSearchPerformanceRoute
+  AppPProjectIdSettingsRoute: typeof AppPProjectIdSettingsRouteWithChildren
+  AppPProjectIdIndexRoute: typeof AppPProjectIdIndexRoute
+  AppPProjectIdReportsReportIdRoute: typeof AppPProjectIdReportsReportIdRoute
+  AppPProjectIdReportsTemplatesRoute: typeof AppPProjectIdReportsTemplatesRoute
+  AppPProjectIdAuditIndexRoute: typeof AppPProjectIdAuditIndexRoute
+  AppPProjectIdReportsIndexRoute: typeof AppPProjectIdReportsIndexRoute
+  AppPProjectIdAuditIssuesResultIdRoute: typeof AppPProjectIdAuditIssuesResultIdRoute
+}
+
+const AppPProjectIdRouteRouteChildren: AppPProjectIdRouteRouteChildren = {
+  AppPProjectIdAiVisibilityRoute: AppPProjectIdAiVisibilityRouteWithChildren,
+  AppPProjectIdBacklinksRoute: AppPProjectIdBacklinksRoute,
+  AppPProjectIdBrandLookupRoute: AppPProjectIdBrandLookupRoute,
+  AppPProjectIdContextRoute: AppPProjectIdContextRoute,
+  AppPProjectIdDomainRoute: AppPProjectIdDomainRoute,
+  AppPProjectIdKeywordsRoute: AppPProjectIdKeywordsRoute,
+  AppPProjectIdLocalSeoRoute: AppPProjectIdLocalSeoRouteWithChildren,
+  AppPProjectIdPromptExplorerRoute: AppPProjectIdPromptExplorerRoute,
+  AppPProjectIdRankTrackingRoute: AppPProjectIdRankTrackingRouteWithChildren,
+  AppPProjectIdSamRoute: AppPProjectIdSamRoute,
+  AppPProjectIdSavedRoute: AppPProjectIdSavedRoute,
+  AppPProjectIdSearchPerformanceRoute: AppPProjectIdSearchPerformanceRoute,
+  AppPProjectIdSettingsRoute: AppPProjectIdSettingsRouteWithChildren,
+  AppPProjectIdIndexRoute: AppPProjectIdIndexRoute,
+  AppPProjectIdReportsReportIdRoute: AppPProjectIdReportsReportIdRoute,
+  AppPProjectIdReportsTemplatesRoute: AppPProjectIdReportsTemplatesRoute,
+  AppPProjectIdAuditIndexRoute: AppPProjectIdAuditIndexRoute,
+  AppPProjectIdReportsIndexRoute: AppPProjectIdReportsIndexRoute,
+  AppPProjectIdAuditIssuesResultIdRoute: AppPProjectIdAuditIssuesResultIdRoute,
+}
+
+const AppPProjectIdRouteRouteWithChildren =
+  AppPProjectIdRouteRoute._addFileChildren(AppPProjectIdRouteRouteChildren)
 
 interface AppRouteRouteChildren {
   AppAiRoute: typeof AppAiRoute
   AppBillingRoute: typeof AppBillingRoute
   AppProjectsRoute: typeof AppProjectsRoute
-  AppSettingsRoute: typeof AppSettingsRoute
+  AppSettingsRoute: typeof AppSettingsRouteWithChildren
   AppSupportRoute: typeof AppSupportRoute
   AppIndexRoute: typeof AppIndexRoute
+  AppPProjectIdRouteRoute: typeof AppPProjectIdRouteRouteWithChildren
+  AppBillingFixPaymentRoute: typeof AppBillingFixPaymentRoute
   AppHelpDataforseoApiKeyRoute: typeof AppHelpDataforseoApiKeyRoute
+  AppHelpOpenrouterApiKeyRoute: typeof AppHelpOpenrouterApiKeyRoute
 }
 
 const AppRouteRouteChildren: AppRouteRouteChildren = {
   AppAiRoute: AppAiRoute,
   AppBillingRoute: AppBillingRoute,
   AppProjectsRoute: AppProjectsRoute,
-  AppSettingsRoute: AppSettingsRoute,
+  AppSettingsRoute: AppSettingsRouteWithChildren,
   AppSupportRoute: AppSupportRoute,
   AppIndexRoute: AppIndexRoute,
+  AppPProjectIdRouteRoute: AppPProjectIdRouteRouteWithChildren,
+  AppBillingFixPaymentRoute: AppBillingFixPaymentRoute,
   AppHelpDataforseoApiKeyRoute: AppHelpDataforseoApiKeyRoute,
+  AppHelpOpenrouterApiKeyRoute: AppHelpOpenrouterApiKeyRoute,
 }
 
 const AppRouteRouteWithChildren = AppRouteRoute._addFileChildren(
   AppRouteRouteChildren,
-)
-
-interface ProjectPProjectIdAuditRouteChildren {
-  ProjectPProjectIdAuditIndexRoute: typeof ProjectPProjectIdAuditIndexRoute
-  ProjectPProjectIdAuditIssuesResultIdRoute: typeof ProjectPProjectIdAuditIssuesResultIdRoute
-}
-
-const ProjectPProjectIdAuditRouteChildren: ProjectPProjectIdAuditRouteChildren =
-  {
-    ProjectPProjectIdAuditIndexRoute: ProjectPProjectIdAuditIndexRoute,
-    ProjectPProjectIdAuditIssuesResultIdRoute:
-      ProjectPProjectIdAuditIssuesResultIdRoute,
-  }
-
-const ProjectPProjectIdAuditRouteWithChildren =
-  ProjectPProjectIdAuditRoute._addFileChildren(
-    ProjectPProjectIdAuditRouteChildren,
-  )
-
-interface ProjectPProjectIdRankTrackingRouteChildren {
-  ProjectPProjectIdRankTrackingConfigIdRoute: typeof ProjectPProjectIdRankTrackingConfigIdRoute
-  ProjectPProjectIdRankTrackingIndexRoute: typeof ProjectPProjectIdRankTrackingIndexRoute
-}
-
-const ProjectPProjectIdRankTrackingRouteChildren: ProjectPProjectIdRankTrackingRouteChildren =
-  {
-    ProjectPProjectIdRankTrackingConfigIdRoute:
-      ProjectPProjectIdRankTrackingConfigIdRoute,
-    ProjectPProjectIdRankTrackingIndexRoute:
-      ProjectPProjectIdRankTrackingIndexRoute,
-  }
-
-const ProjectPProjectIdRankTrackingRouteWithChildren =
-  ProjectPProjectIdRankTrackingRoute._addFileChildren(
-    ProjectPProjectIdRankTrackingRouteChildren,
-  )
-
-interface ProjectPProjectIdRouteRouteChildren {
-  ProjectPProjectIdAuditRoute: typeof ProjectPProjectIdAuditRouteWithChildren
-  ProjectPProjectIdBacklinksRoute: typeof ProjectPProjectIdBacklinksRoute
-  ProjectPProjectIdBrandLookupRoute: typeof ProjectPProjectIdBrandLookupRoute
-  ProjectPProjectIdDomainRoute: typeof ProjectPProjectIdDomainRoute
-  ProjectPProjectIdKeywordsRoute: typeof ProjectPProjectIdKeywordsRoute
-  ProjectPProjectIdPromptExplorerRoute: typeof ProjectPProjectIdPromptExplorerRoute
-  ProjectPProjectIdRankTrackingRoute: typeof ProjectPProjectIdRankTrackingRouteWithChildren
-  ProjectPProjectIdSavedRoute: typeof ProjectPProjectIdSavedRoute
-  ProjectPProjectIdSettingsRoute: typeof ProjectPProjectIdSettingsRoute
-  ProjectPProjectIdIndexRoute: typeof ProjectPProjectIdIndexRoute
-}
-
-const ProjectPProjectIdRouteRouteChildren: ProjectPProjectIdRouteRouteChildren =
-  {
-    ProjectPProjectIdAuditRoute: ProjectPProjectIdAuditRouteWithChildren,
-    ProjectPProjectIdBacklinksRoute: ProjectPProjectIdBacklinksRoute,
-    ProjectPProjectIdBrandLookupRoute: ProjectPProjectIdBrandLookupRoute,
-    ProjectPProjectIdDomainRoute: ProjectPProjectIdDomainRoute,
-    ProjectPProjectIdKeywordsRoute: ProjectPProjectIdKeywordsRoute,
-    ProjectPProjectIdPromptExplorerRoute: ProjectPProjectIdPromptExplorerRoute,
-    ProjectPProjectIdRankTrackingRoute:
-      ProjectPProjectIdRankTrackingRouteWithChildren,
-    ProjectPProjectIdSavedRoute: ProjectPProjectIdSavedRoute,
-    ProjectPProjectIdSettingsRoute: ProjectPProjectIdSettingsRoute,
-    ProjectPProjectIdIndexRoute: ProjectPProjectIdIndexRoute,
-  }
-
-const ProjectPProjectIdRouteRouteWithChildren =
-  ProjectPProjectIdRouteRoute._addFileChildren(
-    ProjectPProjectIdRouteRouteChildren,
-  )
-
-interface ProjectRouteRouteChildren {
-  ProjectPProjectIdRouteRoute: typeof ProjectPProjectIdRouteRouteWithChildren
-}
-
-const ProjectRouteRouteChildren: ProjectRouteRouteChildren = {
-  ProjectPProjectIdRouteRoute: ProjectPProjectIdRouteRouteWithChildren,
-}
-
-const ProjectRouteRouteWithChildren = ProjectRouteRoute._addFileChildren(
-  ProjectRouteRouteChildren,
 )
 
 interface AuthRouteChildren {
@@ -894,14 +1581,14 @@ const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren)
 interface AuthenticatedRouteChildren {
   AuthenticatedOauthConsentRoute: typeof AuthenticatedOauthConsentRoute
   AuthenticatedSubscribeRoute: typeof AuthenticatedSubscribeRoute
-  AuthenticatedOnboardingChatRoute: typeof AuthenticatedOnboardingChatRoute
+  AuthenticatedYcRoute: typeof AuthenticatedYcRoute
   AuthenticatedOnboardingIndexRoute: typeof AuthenticatedOnboardingIndexRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedOauthConsentRoute: AuthenticatedOauthConsentRoute,
   AuthenticatedSubscribeRoute: AuthenticatedSubscribeRoute,
-  AuthenticatedOnboardingChatRoute: AuthenticatedOnboardingChatRoute,
+  AuthenticatedYcRoute: AuthenticatedYcRoute,
   AuthenticatedOnboardingIndexRoute: AuthenticatedOnboardingIndexRoute,
 }
 
@@ -911,17 +1598,31 @@ const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   AppRouteRoute: AppRouteRouteWithChildren,
-  ProjectRouteRoute: ProjectRouteRouteWithChildren,
   AuthRoute: AuthRouteWithChildren,
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
+  AuthErrorRoute: AuthErrorRoute,
   ForgotPasswordRoute: ForgotPasswordRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   VerifyEmailRoute: VerifyEmailRoute,
+  Char91DotwellKnownChar93HttpMessageSignaturesDirectoryRoute:
+    Char91DotwellKnownChar93HttpMessageSignaturesDirectoryRoute,
   Char91DotwellKnownChar93OpenaiAppsChallengeRoute:
     Char91DotwellKnownChar93OpenaiAppsChallengeRoute,
+  AcceptInvitationIdRoute: AcceptInvitationIdRoute,
+  ApiHealthRoute: ApiHealthRoute,
+  ApiPrivacyRegionRoute: ApiPrivacyRegionRoute,
+  ApiSignUpStatusRoute: ApiSignUpStatusRoute,
+  RReportIdRoute: RReportIdRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiAutumnSplatRoute: ApiAutumnSplatRoute,
+  ReportMapGrantCopyrightRoute: ReportMapGrantCopyrightRoute,
+  STokenOgDotpngRoute: STokenOgDotpngRoute,
+  STokenRawRoute: STokenRawRoute,
+  STokenIndexRoute: STokenIndexRoute,
+  ApiGa4OauthCallbackRoute: ApiGa4OauthCallbackRoute,
   ApiGscOauthCallbackRoute: ApiGscOauthCallbackRoute,
+  ReportMapGrantZXYRoute: ReportMapGrantZXYRoute,
+  ApiLocalSeoMapsProjectIdZXYRoute: ApiLocalSeoMapsProjectIdZXYRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

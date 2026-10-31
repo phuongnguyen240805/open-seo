@@ -4,6 +4,7 @@ import { existsSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { FEATURE_PAGE_SLUGS } from "../src/lib/feature-page-slugs.js";
+import { FREE_TOOL_PATHS } from "../src/lib/free-tools/free-tool-paths.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -11,6 +12,7 @@ const __dirname = dirname(__filename);
 const DIST_DIR = join(__dirname, "../dist/client");
 const BLOG_CONTENT_DIR = join(__dirname, "../content/blogs");
 const DOCS_CONTENT_DIR = join(__dirname, "../content/docs");
+const LIBRARY_ROUTES_DIR = join(__dirname, "../src/routes/_marketing/library");
 
 const DEFAULT_SITE_URL = "https://openseo.so";
 const SITE_URL = (process.env.SITE_URL ?? DEFAULT_SITE_URL).replace(/\/+$/, "");
@@ -20,13 +22,25 @@ const STATIC_PATHS = [
   "/pricing",
   "/privacy",
   "/terms-and-conditions",
+  "/partner-terms",
   "/blogs",
   "/docs",
   "/features",
   "/features/mcp",
+  "/tools",
   "/open-source-seo",
+  "/about",
+  "/why-openseo",
   "/google-search-console-mcp",
+  "/semrush-alternative",
+  "/semrush-pricing",
+  "/ahrefs-alternative",
+  "/ahrefs-pricing",
+  "/openseo-vs-dataforseo",
+  "/roadmap",
+  "/support",
   ...Object.values(FEATURE_PAGE_SLUGS).map((slug) => `/features/${slug}`),
+  ...Object.values(FREE_TOOL_PATHS),
 ];
 
 function getContentEntries(
@@ -72,6 +86,35 @@ function getContentEntries(
   });
 }
 
+function getLibraryPaths(dir = LIBRARY_ROUTES_DIR, segments = []) {
+  if (!existsSync(dir)) {
+    return [];
+  }
+
+  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    if (entry.name.startsWith(".")) {
+      return [];
+    }
+
+    if (entry.isDirectory()) {
+      return getLibraryPaths(join(dir, entry.name), [...segments, entry.name]);
+    }
+
+    if (!entry.isFile() || !/\.tsx$/i.test(entry.name)) {
+      return [];
+    }
+
+    const slug = entry.name.replace(/\.tsx$/i, "");
+    const pathSegments = slug === "index" ? segments : [...segments, slug];
+
+    return [
+      pathSegments.length > 0
+        ? `/library/${pathSegments.join("/")}`
+        : "/library",
+    ];
+  });
+}
+
 function toCanonicalUrl(path) {
   if (path === "/") {
     return `${SITE_URL}/`;
@@ -86,7 +129,7 @@ function main() {
   }
 
   const entries = new Map();
-  for (const path of STATIC_PATHS) {
+  for (const path of [...STATIC_PATHS, ...getLibraryPaths()]) {
     entries.set(path, { path, lastmod: null });
   }
   for (const entry of [

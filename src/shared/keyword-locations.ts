@@ -6,7 +6,7 @@
  * https://api.dataforseo.com/v3/dataforseo_labs/locations_and_languages).
  * Countries Labs does not cover are marked `googleAdsOnly` and are served by
  * the DataForSEO Keywords Data API (Google Ads endpoints), which covers the
- * full Google geotarget list — see specs/0004-keyword-data-source-routing.md.
+ * full Google geotarget list — see docs/maintainers/specs/0004-keyword-data-source-routing.md.
  * Google-Ads-only rows have no keyword difficulty or search intent.
  *
  * For countries with multiple Google-supported languages, we pick the
@@ -20,6 +20,37 @@
  * product-wide default via DEFAULT_LOCATION_CODE below.
  */
 export const DEFAULT_LOCATION_CODE = 2840;
+
+/**
+ * Human-readable form of a canonical DataForSEO location_name, whose segments
+ * are comma-separated with inconsistent spacing ("Portland-Auburn, ME,United
+ * States"). Trims each segment; `maxSegments` truncates for compact display
+ * ("Enid, Oklahoma").
+ */
+export function formatLocationLabel(
+  locationName: string,
+  maxSegments?: number,
+): string {
+  const parts = locationName.split(",").map((part) => part.trim());
+  return (maxSegments ? parts.slice(0, maxSegments) : parts).join(", ");
+}
+
+/**
+ * shortLabel is a *display* label; the one entry that diverges from ISO
+ * 3166-1 alpha-2 is the United Kingdom ("UK" reads better, ISO is "GB").
+ */
+const ISO_COUNTRY_OVERRIDES: Record<string, string> = { UK: "GB" };
+
+/**
+ * Lowercase ISO 3166-1 alpha-2 code for a country location_code — the format
+ * DataForSEO's per-country endpoints (e.g. SERP locations) require.
+ */
+export function getIsoCountryCode(locationCode: number): string {
+  const shortLabel =
+    LOCATION_OPTIONS.find((option) => option.code === locationCode)
+      ?.shortLabel ?? "US";
+  return (ISO_COUNTRY_OVERRIDES[shortLabel] ?? shortLabel).toLowerCase();
+}
 
 type KeywordDataProvider = "labs" | "google_ads";
 
@@ -357,6 +388,13 @@ export const LOCATION_OPTIONS: readonly LocationOption[] = [
     googleAdsOnly: true,
   },
   { code: 2586, label: "Pakistan", shortLabel: "PK", languageCode: "en" },
+  {
+    code: 2275,
+    label: "Palestine",
+    shortLabel: "PS",
+    languageCode: "ar",
+    googleAdsOnly: true,
+  },
   { code: 2591, label: "Panama", shortLabel: "PA", languageCode: "es" },
   {
     code: 2598,
@@ -504,10 +542,11 @@ export const LOCATION_OPTIONS: readonly LocationOption[] = [
  * dropped (Norway uses `nb`, which both SERP and Labs accept). Every country
  * default in LOCATION_OPTIONS must appear here so the picker can show it.
  *
- * This is the master list; the picker shows a per-country subset via
+ * This is the master list. Rank tracking (SERP) offers all of it for any
+ * country; the Labs-backed project picker shows a per-country subset via
  * getLanguageOptions() below.
  */
-const LANGUAGE_OPTIONS = [
+export const SERP_LANGUAGE_OPTIONS = [
   { code: "af", label: "Afrikaans" },
   { code: "ak", label: "Akan" },
   { code: "sq", label: "Albanian" },
@@ -658,8 +697,83 @@ const LOCATION_LANGUAGE: Record<number, string> = Object.fromEntries(
   LOCATION_OPTIONS.map((option) => [option.code, option.languageCode]),
 );
 
+const SUPPORTED_LANGUAGE_CODES = new Set<string>(
+  SERP_LANGUAGE_OPTIONS.map((language) => language.code),
+);
+
 export function getLanguageCode(locationCode: number): string {
   return LOCATION_LANGUAGE[locationCode] ?? "en";
+}
+
+/**
+ * Resolves a request's market against the project's default. The pair is
+ * resolved together: overriding only the location snaps the language to that
+ * location's default language, because the project's language was chosen for
+ * the project's own location and may not be valid — or sensible — for the
+ * override (e.g. a Vietnam project querying Germany must not default to
+ * Vietnamese).
+ */
+export function resolveMarket(
+  args: { locationCode?: number; languageCode?: string },
+  project: { locationCode: number; languageCode: string },
+): { locationCode: number; languageCode: string } {
+  const locationCode = args.locationCode ?? project.locationCode;
+  const languageCode =
+    args.languageCode ??
+    (locationCode === project.locationCode
+      ? project.languageCode
+      : getLanguageCode(locationCode));
+  return { locationCode, languageCode };
+}
+
+/**
+ * Whether DataForSEO serves this language for this location. Only Labs
+ * locations have authoritative per-location language lists; Google Ads
+ * locations are left to the metering safety net.
+ */
+export function isLanguageServedForLocation(
+  locationCode: number,
+  languageCode: string,
+): boolean {
+  if (getKeywordDataProvider(locationCode) !== "labs") return true;
+  return getLanguageOptions(locationCode).some(
+    (option) => option.code === languageCode,
+  );
+}
+
+/**
+ * Resolves the market for a Labs-only tool. Same as resolveMarket, except a
+ * project default Labs cannot serve is replaced by the United States: the
+ * caller never chose that market, so rejecting the call would dead-end on a
+ * value it can't see — and passing the pair through would spend credits on a
+ * task DataForSEO rejects. An explicit location is left alone, so a caller that
+ * names an unserved country still fails loudly on its own assert.
+ */
+export function resolveLabsMarket(
+  args: { locationCode?: number; languageCode?: string },
+  project: { locationCode: number; languageCode: string },
+): { locationCode: number; languageCode: string } {
+  const projectIsServed =
+    getKeywordDataProvider(project.locationCode) === "labs" &&
+    isLanguageServedForLocation(project.locationCode, project.languageCode);
+
+  return resolveMarket(
+    args,
+    projectIsServed
+      ? project
+      : { locationCode: DEFAULT_LOCATION_CODE, languageCode: "en" },
+  );
+}
+
+/**
+ * Language codes DataForSEO accepts — the master SERP_LANGUAGE_OPTIONS list.
+ * Callers (e.g. MCP tools) can pass an arbitrary `language_code`; an
+ * unsupported one is otherwise rejected by DataForSEO as an opaque *charged*
+ * "Invalid Field: 'language_code'." failure, so we validate against this set
+ * first (cost 0).
+ */
+export function isSupportedLanguageCode(languageCode: string): boolean {
+  return SUPPORTED_LANGUAGE_CODES.has(languageCode);
 }
 
 /**
@@ -667,7 +781,7 @@ export function getLanguageCode(locationCode: number): string {
  * locations_and_languages endpoint (each country's default is included).
  * Every other country offers just its single default (see getLanguageOptions);
  * googleAdsOnly countries have no per-country language data, so they fall back
- * to the default too. Keep each list's codes present in LANGUAGE_OPTIONS.
+ * to the default too. Keep each list's codes present in SERP_LANGUAGE_OPTIONS.
  */
 const MULTI_LANGUAGE_LOCATIONS: Record<number, readonly string[]> = {
   2012: ["ar", "fr"], // Algeria
@@ -693,17 +807,36 @@ const MULTI_LANGUAGE_LOCATIONS: Record<number, readonly string[]> = {
 };
 
 /**
- * Languages to offer for a location's rank-tracking config. Restricts the
- * global LANGUAGE_OPTIONS list to the languages DataForSEO supports for that
- * country, so the picker isn't a wall of irrelevant options.
+ * Languages to offer for a location. Restricts the global SERP_LANGUAGE_OPTIONS
+ * list to the languages DataForSEO supports for that country, so a picker
+ * isn't a wall of irrelevant options.
  */
 export function getLanguageOptions(
   locationCode: number,
-): readonly (typeof LANGUAGE_OPTIONS)[number][] {
+): readonly (typeof SERP_LANGUAGE_OPTIONS)[number][] {
   const codes = new Set(
     MULTI_LANGUAGE_LOCATIONS[locationCode] ?? [getLanguageCode(locationCode)],
   );
-  return LANGUAGE_OPTIONS.filter((language) => codes.has(language.code));
+  return SERP_LANGUAGE_OPTIONS.filter((language) => codes.has(language.code));
+}
+
+/**
+ * The language to send to the keyword-data APIs (Labs / Google Ads) for a
+ * market whose language was chosen for the SERP API. SERP serves any language
+ * in any country — rank tracking relies on that — but the keyword-data APIs
+ * only serve a country's own languages and reject anything else as an opaque
+ * *charged* "Invalid Field: 'language_code'." task failure. Falls back to the
+ * country's default language.
+ */
+export function resolveKeywordDataLanguage(
+  locationCode: number,
+  languageCode: string,
+): string {
+  return getLanguageOptions(locationCode).some(
+    (option) => option.code === languageCode,
+  )
+    ? languageCode
+    : getLanguageCode(locationCode);
 }
 
 export function isSupportedLocationCode(locationCode: number): boolean {

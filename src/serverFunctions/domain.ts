@@ -7,40 +7,44 @@ import {
   domainPagesPageRequestSchema,
 } from "@/types/schemas/domain";
 import { DomainService } from "@/server/features/domain/services/DomainService";
+import { recordResearchStep } from "@/server/features/activation/researchActivation";
+import { resolveLabsMarket } from "@/shared/keyword-locations";
 
 function shouldUseDomainE2eFixtures() {
   return import.meta.env.VITE_E2E_DOMAIN_FIXTURES === "1";
 }
 
 async function getDomainE2eFixtures() {
-  return import("../../e2e/fixtures/domain-overview-fixtures");
+  return import("../../tests/fixtures/domain-overview-fixtures");
 }
 
 export const getDomainOverview = createServerFn({ method: "POST" })
   .middleware(requireProjectContext)
-  .inputValidator((data: unknown) => domainOverviewSchema.parse(data))
+  .validator(domainOverviewSchema)
   .handler(async ({ data, context }) => {
+    const input = {
+      ...data,
+      ...resolveLabsMarket(data, context.project),
+      projectId: context.projectId,
+    };
     if (shouldUseDomainE2eFixtures()) {
       const fixtures = await getDomainE2eFixtures();
-      return fixtures.getFixtureOverview(data.domain);
+      return fixtures.getFixtureOverview(input.domain);
     }
 
-    return DomainService.getOverview(
-      {
-        ...data,
-        projectId: context.projectId,
-      },
-      context,
-    );
+    const overview = await DomainService.getOverview(input, context);
+    await recordResearchStep(context.projectId, "competitor");
+    return overview;
   });
 
 export const getDomainKeywordSuggestions = createServerFn({ method: "POST" })
   .middleware(requireProjectContext)
-  .inputValidator((data: unknown) => domainKeywordSuggestionsSchema.parse(data))
+  .validator(domainKeywordSuggestionsSchema)
   .handler(async ({ data, context }) =>
     DomainService.getSuggestedKeywords(
       {
         ...data,
+        ...resolveLabsMarket(data, context.project),
         organizationId: context.organizationId,
         projectId: context.projectId,
       },
@@ -50,38 +54,34 @@ export const getDomainKeywordSuggestions = createServerFn({ method: "POST" })
 
 export const getDomainKeywordsPage = createServerFn({ method: "POST" })
   .middleware(requireProjectContext)
-  .inputValidator((data: unknown) =>
-    domainKeywordsPageRequestSchema.parse(data),
-  )
+  .validator(domainKeywordsPageRequestSchema)
   .handler(async ({ data, context }) => {
+    const input = {
+      ...data,
+      ...resolveLabsMarket(data, context.project),
+      projectId: context.projectId,
+    };
     if (shouldUseDomainE2eFixtures()) {
       const fixtures = await getDomainE2eFixtures();
-      return fixtures.getFixtureKeywordsPage(data);
+      return fixtures.getFixtureKeywordsPage(input);
     }
 
-    return DomainService.getKeywordsPage(
-      {
-        ...data,
-        projectId: context.projectId,
-      },
-      context,
-    );
+    return DomainService.getKeywordsPage(input, context);
   });
 
 export const getDomainPagesPage = createServerFn({ method: "POST" })
   .middleware(requireProjectContext)
-  .inputValidator((data: unknown) => domainPagesPageRequestSchema.parse(data))
+  .validator(domainPagesPageRequestSchema)
   .handler(async ({ data, context }) => {
+    const input = {
+      ...data,
+      ...resolveLabsMarket(data, context.project),
+      projectId: context.projectId,
+    };
     if (shouldUseDomainE2eFixtures()) {
       const fixtures = await getDomainE2eFixtures();
-      return fixtures.getFixturePagesPage(data);
+      return fixtures.getFixturePagesPage(input);
     }
 
-    return DomainService.getPagesPage(
-      {
-        ...data,
-        projectId: context.projectId,
-      },
-      context,
-    );
+    return DomainService.getPagesPage(input, context);
   });

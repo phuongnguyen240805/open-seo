@@ -6,6 +6,7 @@ import type {
   LlmTopPagesItem,
 } from "@/server/lib/dataforseoLlmSchemas";
 import { brandLookupResultSchema } from "@/types/schemas/ai-search";
+import { parseResearchTarget } from "@/shared/researchScope";
 
 function platformBundle(
   platform: "chat_gpt" | "google",
@@ -46,6 +47,7 @@ function baseArgs(overrides: Partial<ShapeArgs> = {}): ShapeArgs {
   return {
     query: "acme",
     detected: { type: "keyword", value: "acme" },
+    researchTarget: null,
     platformBundles: [
       platformBundle("chat_gpt", 10, 100),
       platformBundle("google", 5, 50),
@@ -134,21 +136,34 @@ describe("shapeResult", () => {
     expect(result.topQueries[0].brandsMentioned[0]).toHaveLength(200);
   });
 
-  it("round-trips through the cache schema", () => {
-    const topPage: LlmTopPagesItem = {
-      key: "https://a.com",
-      platform: [{ key: "google", mentions: 3, ai_search_volume: 300 }],
-    };
+  it("keeps only in-scope page rows and prompts under a subfolder scope", () => {
+    const parsed = parseResearchTarget("acme.com/blog", "subfolder");
+    if (!parsed.ok) throw new Error(parsed.message);
+
     const result = shapeResult(
       baseArgs({
+        detected: { type: "domain", value: "acme.com" },
+        researchTarget: parsed.target,
         platformBundles: [
           {
             platform: "google",
             status: "success",
             bundle: {
-              aggregated: { platform: [] },
-              topPages: [topPage],
-              mentions: [],
+              aggregated: {
+                platform: [
+                  { key: "google", mentions: 12, ai_search_volume: 120 },
+                ],
+              },
+              topPages: [
+                page("https://acme.com/blog/post"),
+                // Sibling path, and another domain cited alongside the brand.
+                page("https://acme.com/blogging"),
+                page("https://other.example/review"),
+              ],
+              mentions: [
+                mention("in scope", "https://acme.com/blog/post"),
+                mention("out of scope", "https://acme.com/pricing"),
+              ],
               complete: true,
             },
           },
@@ -156,11 +171,31 @@ describe("shapeResult", () => {
       }),
     );
 
-    expect(result.topPages[0]).toMatchObject({
-      domain: "a.com",
-      mentions: 3,
-      capturedVolume: 300,
-    });
+    expect(result.topPages.map((row) => row.url)).toEqual([
+      "https://acme.com/blog/post",
+    ]);
+    expect(result.topQueries.map((row) => row.question)).toEqual(["in scope"]);
+    // Mentions can't be narrowed upstream, so they stay and get flagged.
+    expect(result.totalMentions).toBe(12);
+    expect(result.aggregatesAreDomainLevel).toBe(true);
+    expect(result.resolvedTarget).toBe("acme.com/blog");
+    // A shape the cache schema rejects turns every cache read into a
+    // re-charged lookup.
     expect(brandLookupResultSchema.safeParse(result).success).toBe(true);
   });
 });
+
+function page(url: string): LlmTopPagesItem {
+  return {
+    key: url,
+    platform: [{ key: "google", mentions: 2, ai_search_volume: 20 }],
+  };
+}
+
+function mention(question: string, sourceUrl: string): LlmMentionItem {
+  return {
+    question,
+    ai_search_volume: 10,
+    sources: [{ url: sourceUrl }],
+  };
+}

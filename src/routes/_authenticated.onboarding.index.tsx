@@ -1,33 +1,44 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useEffect } from "react";
+import { useMutation } from "@tanstack/react-query";
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
-import { OnboardingAccountMenu } from "@/client/features/onboarding/OnboardingAccountMenu";
+import { PlanPageAccountMenu } from "@/client/features/billing/PlanPageAccountMenu";
 import { PostSignupOnboarding } from "@/client/features/onboarding/PostSignupOnboarding";
+import { projectsQueryOptions } from "@/client/features/projects/projectQueries";
 import {
-  buildOnboardingPayload,
+  ONBOARDING_STEPS,
   ONBOARDING_LAST_STEP,
-  type OnboardingAnswers,
   onboardingAnswersQueryOptions,
-  restoreOnboardingAnswers,
 } from "@/client/features/onboarding/onboardingModel";
-import { managedAccessQueryOptions } from "@/client/features/billing/managed-access";
 import { captureClientEvent } from "@/client/lib/posthog";
 import { queryClient } from "@/client/tanstack-db";
 import { useSession } from "@/lib/auth-client";
-import { isHostedClientAuthMode } from "@/lib/auth-mode";
-import { SUBSCRIBE_ROUTE } from "@/shared/billing";
+import { normalizeAuthRedirect } from "@/lib/auth-redirect";
 import { saveOnboardingAnswers } from "@/serverFunctions/onboarding";
-
-const ONBOARDING_EXISTING_USER_CUTOFF = "2026-05-27T00:00:00.000Z";
 
 const clampStep = (step: number) =>
   Math.min(Math.max(0, Math.trunc(step)), ONBOARDING_LAST_STEP);
 
 export const Route = createFileRoute("/_authenticated/onboarding/")({
+  // The app renders inside ClientOnly, and this guard reads account-scoped data
+  // through a module-scoped query client. Keep it out of server requests so one
+  // worker isolate cannot reuse another account's cached onboarding state.
+  ssr: false,
   // Step lives in the URL so it survives refresh and works with back/forward.
-  validateSearch: (search: Record<string, unknown>): { step: number } => {
+  // `domain` arrives from sign-up when the visitor checked a site with the
+  // marketing site's free keyword tool. `redirect` is the app page the user
+  // asked for before useOnboardingRedirect sent them here.
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): { step: number; domain?: string; redirect?: string } => {
     const raw = Number(search.step);
-    return { step: Number.isFinite(raw) ? clampStep(raw) : 0 };
+    return {
+      step: Number.isFinite(raw) ? clampStep(raw) : 0,
+      domain: typeof search.domain === "string" ? search.domain : undefined,
+      redirect:
+        typeof search.redirect === "string"
+          ? normalizeAuthRedirect(search.redirect)
+          : undefined,
+    };
   },
   // Send users who already finished onboarding home before rendering. Running
   // this in beforeLoad (not a component effect) means it can't race with the
@@ -45,151 +56,96 @@ export const Route = createFileRoute("/_authenticated/onboarding/")({
 
 function OnboardingPage() {
   const { data: session } = useSession();
-  const onboardingQuery = useQuery(onboardingAnswersQueryOptions());
-
-  if (!onboardingQuery.data) {
-    return null;
-  }
-
-  const userCreatedAt = onboardingQuery.data.userCreatedAt
-    ? Date.parse(onboardingQuery.data.userCreatedAt)
-    : Date.now();
-  const isExistingUser =
-    userCreatedAt < Date.parse(ONBOARDING_EXISTING_USER_CUTOFF);
-  const firstName = session?.user?.name?.split(" ")[0] || "";
-
-  return (
-    <OnboardingFlow
-      firstName={firstName}
-      isExistingUser={isExistingUser}
-      initialAnswers={restoreOnboardingAnswers(onboardingQuery.data.answers)}
-      email={session?.user?.email}
-    />
-  );
-}
-
-function OnboardingFlow({
-  firstName,
-  isExistingUser,
-  initialAnswers,
-  email,
-}: {
-  firstName: string;
-  isExistingUser: boolean;
-  initialAnswers: OnboardingAnswers;
-  email: string | undefined;
-}) {
   const navigate = useNavigate();
-  const { step } = Route.useSearch();
-  const [answers, setAnswers] = useState<OnboardingAnswers>(initialAnswers);
-
-  // Self-hosted has no paywall. Hosted users now get a short strategy chat
-  // before the subscribe gate, so this only feeds later paid onboarding steps.
-  const isHostedMode = isHostedClientAuthMode();
-  const accessQuery = useQuery({
-    ...managedAccessQueryOptions(),
-    enabled: isHostedMode,
-  });
-  const needsSubscription =
-    isHostedMode && accessQuery.data?.hasManagedAccess === false;
+  const { step, domain, redirect: returnTo } = Route.useSearch();
 
   const saveMutation = useMutation({
-    mutationFn: (extra: {
-      mcpSetupIntent?: "yes" | "no";
-      completed?: boolean;
-    }) =>
+    mutationFn: (extra: { completed?: boolean }) =>
       saveOnboardingAnswers({
-        data: buildOnboardingPayload(answers, step, extra),
+        data: extra,
       }),
-    onError: (error) => {
-      console.error("Failed to save onboarding answers", error);
-    },
   });
 
+  // Pageviews drop the query string, `?step=` included, so each step reports
+  // itself.
+  useEffect(() => {
+    captureClientEvent("onboarding:step_viewed", {
+      step,
+      step_name: ONBOARDING_STEPS[step],
+    });
+  }, [step]);
+
   const goToStep = (next: number) =>
-    void navigate({ to: "/onboarding", search: { step: clampStep(next) } });
+    void navigate({
+      to: "/onboarding",
+      search: { step: clampStep(next), domain, redirect: returnTo },
+    });
 
-  const advanceFromCurrentStep = () => {
-    // The strategy chat is a hosted-only, pre-paywall surface (it needs the
-    // managed LLM + trial credits). Self-hosted skips it and continues straight
-    // to the GSC/MCP steps.
-    if (step === 2 && isHostedMode) {
-      void navigate({ to: "/onboarding/chat", replace: true });
-      return;
-    }
-
-    const next = clampStep(step + 1);
-    if (step >= 3 && needsSubscription) {
-      void navigate({
-        to: SUBSCRIBE_ROUTE,
-        search: { redirect: `/onboarding?step=${next}` },
-        replace: true,
-      });
-      return;
-    }
-    goToStep(next);
-  };
-
-  const handleNext = () => {
-    if (step === 0) {
-      captureClientEvent("onboarding:interests_selected", {
-        interests: answers.selectedInterests,
-        interest_other: answers.interestOther.trim() || undefined,
-      });
-    }
-    saveMutation.mutate({});
-    advanceFromCurrentStep();
-  };
+  const handleNext = () => goToStep(step + 1);
 
   const handleSkip = () => {
-    saveMutation.mutate({});
-    captureClientEvent("onboarding:step_skipped", { step });
-    advanceFromCurrentStep();
+    captureClientEvent("onboarding:step_skipped", {
+      step,
+      step_name: ONBOARDING_STEPS[step],
+    });
+    goToStep(step + 1);
   };
 
-  const handleFinish = async (mcpSetupIntent: "yes" | "no") => {
+  const handleFinish = async () => {
+    // Agent setup also finishes on its own once the agent connects, so this
+    // can run again while a click's save is still pending.
+    if (saveMutation.isPending) return;
     try {
-      await saveMutation.mutateAsync({ mcpSetupIntent, completed: true });
-      // Refresh the shared cache so the destination's onboarding-redirect guard
-      // sees the completed state and doesn't bounce the user back here.
-      await queryClient.invalidateQueries({ queryKey: ["onboardingAnswers"] });
+      await saveMutation.mutateAsync({ completed: true });
+      // The route guard fetched this query without a mounted observer. Refetch
+      // inactive queries too, before the dashboard reads the cached completion.
+      await queryClient.invalidateQueries(
+        {
+          queryKey: ["onboardingAnswers"],
+          refetchType: "all",
+        },
+        { throwOnError: true },
+      );
     } catch {
-      // Already logged by the mutation's onError; still navigate the user on.
+      // Keep the user here to retry; an unsaved completion would redirect back.
+      return;
     }
-    captureClientEvent("onboarding:completed", {
-      interests: answers.selectedInterests,
-      work_for: answers.workFor,
-      source: answers.source,
-      wants_mcp_setup: mcpSetupIntent === "yes",
-    });
-    if (mcpSetupIntent === "yes") {
-      void navigate({ to: "/ai", replace: true });
-    } else {
-      void navigate({ to: "/", replace: true });
+    // Visitors who signed up from the free keyword check came to see the rest
+    // of its results, so land them on the saved website's keywords ranking
+    // #4-20 instead of the dashboard.
+    if (domain) {
+      const [project] = await queryClient
+        .fetchQuery(projectsQueryOptions())
+        .catch(() => []);
+      if (project?.domain) {
+        void navigate({
+          to: "/p/$projectId/domain",
+          params: { projectId: project.id },
+          search: {
+            domain: project.domain,
+            minRank: 4,
+            maxRank: 20,
+            sort: "volume",
+          },
+          replace: true,
+        });
+        return;
+      }
     }
+    void navigate({ href: returnTo ?? "/", replace: true });
   };
 
   return (
     <PostSignupOnboarding
-      firstName={firstName}
-      title={isExistingUser ? "Tell us about your work" : undefined}
-      helperText={
-        isExistingUser
-          ? "A little context helps us decide where to focus. You can also reach me anytime at ben@openseo.so."
-          : undefined
-      }
       step={step}
-      answers={answers}
-      onAnswersChange={setAnswers}
       onNext={handleNext}
       onBack={() => goToStep(step - 1)}
+      onStepChange={goToStep}
       onSkip={handleSkip}
       onFinish={handleFinish}
-      onUpgradeAcknowledged={() =>
-        void navigate({ to: "/onboarding", search: { step }, replace: true })
-      }
+      suggestedDomain={domain}
       isSaving={saveMutation.isPending}
-      accountMenu={<OnboardingAccountMenu email={email} />}
+      accountMenu={<PlanPageAccountMenu email={session?.user?.email} />}
     />
   );
 }

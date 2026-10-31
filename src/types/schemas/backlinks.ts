@@ -1,43 +1,54 @@
 import { z } from "zod";
+import {
+  RESEARCH_SCOPES,
+  RESEARCH_SCOPE_PARAM_DESCRIPTION,
+  type ResearchScope,
+} from "@/shared/researchScope";
 
 export const backlinksTabSchema = z.enum(["backlinks", "domains", "pages"]);
-export const backlinksTargetScopeSchema = z.enum(["domain", "page"]);
-const DEFAULT_BACKLINKS_SPAM_THRESHOLD = 40;
 
-function normalizeBacklinksSpamThreshold(value: number) {
-  if (!Number.isFinite(value)) {
-    return DEFAULT_BACKLINKS_SPAM_THRESHOLD;
-  }
+/**
+ * Backlinks uses the shared research scopes. DataForSEO has no prefix
+ * targeting, so subfolder rides on url_to/url prefix filters: backlink rows
+ * and top pages are provider-filtered, summary counts come from filtered
+ * backlink totals, and rank/trends/referring-domains stay unavailable.
+ */
+export type BacklinksTargetScope = ResearchScope;
 
-  return Math.min(100, Math.max(0, Math.trunc(value)));
+/**
+ * Scope as it arrives from persisted or external state (URLs, MCP clients).
+ * "page" is the pre-research-scope name for exact_url and is still accepted.
+ */
+export const backlinksScopeWithLegacySchema = z.enum([
+  ...RESEARCH_SCOPES,
+  "page",
+]);
+
+export type BacklinksScopeWithLegacy = z.infer<
+  typeof backlinksScopeWithLegacySchema
+>;
+
+export function resolveBacklinksScope(
+  scope: BacklinksScopeWithLegacy,
+): ResearchScope {
+  return scope === "page" ? "exact_url" : scope;
 }
+
+export const backlinksScopeParamSchema =
+  backlinksScopeWithLegacySchema.transform(resolveBacklinksScope);
+
+/** Shared wording for the MCP tools that take a backlinks scope. */
+export const BACKLINKS_SCOPE_DESCRIPTION = `${RESEARCH_SCOPE_PARAM_DESCRIPTION} 'page' is a deprecated alias of 'exact_url'. Subfolder counts are computed from filtered backlink totals; rank, trends, and the referring-domains breakdown are unavailable for subfolders.`;
+
+export const DEFAULT_BACKLINKS_SPAM_THRESHOLD = 40;
 
 export type BacklinksSpamFilterOptions = {
   hideSpam?: boolean;
-  spamThreshold?: number;
 };
 
-export function normalizeBacklinksSpamFilterOptions(
-  options?: BacklinksSpamFilterOptions,
-) {
-  const hideSpam = options?.hideSpam ?? true;
-
-  return {
-    hideSpam,
-    spamThreshold: hideSpam
-      ? normalizeBacklinksSpamThreshold(
-          options?.spamThreshold ?? DEFAULT_BACKLINKS_SPAM_THRESHOLD,
-        )
-      : undefined,
-  };
-}
 export const backlinksLookupSchema = z.object({
   target: z.string().min(1, "Target is required").max(2048),
-  scope: backlinksTargetScopeSchema.optional(),
-});
-
-export const backlinksProjectSchema = z.object({
-  projectId: z.string().min(1),
+  scope: backlinksScopeParamSchema.optional(),
 });
 
 export const backlinksOverviewInputSchema = backlinksLookupSchema.extend({
@@ -49,7 +60,7 @@ export const backlinksOverviewInputSchema = backlinksLookupSchema.extend({
 /* ------------------------------------------------------------------ */
 
 export const BACKLINKS_PAGE_SIZES = [50, 100, 200] as const;
-export const DEFAULT_BACKLINKS_PAGE_SIZE = 100;
+export const DEFAULT_BACKLINKS_PAGE_SIZE = 50;
 
 const optionalNumber = z
   .union([
@@ -140,7 +151,7 @@ export const topPagesSortFieldSchema = z.enum([
 /** Single source for each tab's default sort, shared by the request-schema
  * defaults and the client's header indicators / query fallbacks. */
 export const BACKLINKS_DEFAULT_SORT = {
-  backlinks: { field: "rank", order: "desc" },
+  backlinks: { field: "firstSeen", order: "desc" },
   domains: { field: "backlinks", order: "desc" },
   pages: { field: "backlinks", order: "desc" },
 } as const satisfies Record<
@@ -162,6 +173,7 @@ const backlinksPageRequestBase = backlinksLookupSchema.extend({
 });
 
 export const backlinksRowsPageRequestSchema = backlinksPageRequestBase.extend({
+  hideSpam: z.boolean().optional(),
   sortField: backlinksRowsSortFieldSchema.default(
     BACKLINKS_DEFAULT_SORT.backlinks.field,
   ),
@@ -185,9 +197,10 @@ export const topPagesPageRequestSchema = backlinksPageRequestBase.extend({
 });
 
 export const backlinksSearchSchema = z.object({
+  includeSpam: z.boolean().optional().catch(undefined),
   target: z.string().optional(),
-  scope: backlinksTargetScopeSchema.optional(),
-  tab: backlinksTabSchema.optional(),
+  scope: backlinksScopeParamSchema.optional().catch(undefined),
+  tab: backlinksTabSchema.optional().catch(undefined),
   page: z.coerce.number().int().positive().optional().catch(undefined),
   size: z.coerce
     .number()
@@ -208,7 +221,6 @@ export const backlinksSearchSchema = z.object({
 
 export type BacklinksLookupInput = z.infer<typeof backlinksLookupSchema>;
 export type BacklinksTab = z.infer<typeof backlinksTabSchema>;
-export type BacklinksTargetScope = z.infer<typeof backlinksTargetScopeSchema>;
 export type BacklinksSortOrder = z.infer<typeof backlinksSortOrderSchema>;
 export type BacklinksRowsSortField = z.infer<
   typeof backlinksRowsSortFieldSchema

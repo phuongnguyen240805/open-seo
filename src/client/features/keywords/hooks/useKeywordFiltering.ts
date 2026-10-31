@@ -2,10 +2,14 @@ import { useMemo } from "react";
 import { sortBy } from "remeda";
 import { parseTerms } from "@/client/features/keywords/utils";
 import type { KeywordResearchRow } from "@/types/keywords";
-import type { KeywordFilterValues } from "@/client/features/keywords/keywordResearchTypes";
+import {
+  parseIntentFilter,
+  type KeywordFilterValues,
+} from "@/client/features/keywords/keywordResearchTypes";
 import type { SortDir, SortField } from "@/client/features/keywords/components";
+import { groupSharedVolumeRows } from "@/client/features/keywords/groupSharedVolumeRows";
 
-function applyKeywordFiltersAndSort(params: {
+export function applyKeywordFiltersAndSort(params: {
   rows: KeywordResearchRow[];
   filters: KeywordFilterValues;
   sortField: SortField;
@@ -13,6 +17,7 @@ function applyKeywordFiltersAndSort(params: {
 }): KeywordResearchRow[] {
   const includeTerms = parseTerms(params.filters.include);
   const excludeTerms = parseTerms(params.filters.exclude);
+  const selectedIntents = parseIntentFilter(params.filters.intents);
 
   const filtered = params.rows.filter((row) => {
     const haystack = row.keyword.toLowerCase();
@@ -23,6 +28,10 @@ function applyKeywordFiltersAndSort(params: {
       return false;
     }
     if (excludeTerms.some((term) => haystack.includes(term))) {
+      return false;
+    }
+
+    if (selectedIntents.length > 0 && !selectedIntents.includes(row.intent)) {
       return false;
     }
 
@@ -64,20 +73,34 @@ function applyKeywordFiltersAndSort(params: {
 
 export function useKeywordFiltering(params: {
   rows: KeywordResearchRow[];
+  searchedKeyword: string;
+  groupKeywords: boolean;
   filters: KeywordFilterValues;
   sortField: SortField;
   sortDir: SortDir;
 }) {
-  const filteredRows = useMemo(
-    () =>
-      applyKeywordFiltersAndSort({
-        rows: params.rows,
-        filters: params.filters,
-        sortField: params.sortField,
-        sortDir: params.sortDir,
-      }),
-    [params.filters, params.rows, params.sortDir, params.sortField],
-  );
+  // Group after filtering so a variant that passes the filters on its own
+  // (say, a lower difficulty) is never hidden behind one that does not.
+  const filteredRows = useMemo(() => {
+    const rows = applyKeywordFiltersAndSort({
+      rows: params.rows,
+      filters: params.filters,
+      sortField: params.sortField,
+      sortDir: params.sortDir,
+    });
+    return groupSharedVolumeRows(
+      rows,
+      params.searchedKeyword,
+      params.groupKeywords,
+    );
+  }, [
+    params.filters,
+    params.groupKeywords,
+    params.rows,
+    params.searchedKeyword,
+    params.sortDir,
+    params.sortField,
+  ]);
 
   const activeFilterCount = useMemo(
     () =>

@@ -1,9 +1,8 @@
 import { buildCacheKey, getCached, setCached } from "@/server/lib/r2-cache";
 import { normalizeBacklinksTarget } from "@/server/lib/dataforseo";
-import {
-  normalizeBacklinksSpamFilterOptions,
-  type BacklinksLookupInput,
-  type BacklinksSpamFilterOptions,
+import type {
+  BacklinksLookupInput,
+  BacklinksSpamFilterOptions,
 } from "@/types/schemas/backlinks";
 import {
   profileBacklinksOverview,
@@ -25,7 +24,7 @@ const defaultCache: BacklinksCache = {
 
 type BacklinksPageCacheInput = {
   target: string;
-  scope?: "domain" | "page";
+  scope?: BacklinksLookupInput["scope"];
   page: number;
   pageSize: number;
   sortField: string;
@@ -40,12 +39,12 @@ function createBacklinksService(cache: BacklinksCache = defaultCache) {
     async profileOverview(
       input: BacklinksLookupInput,
       billingCustomer: BillingCustomerContext,
-      // Lets a caller (e.g. onboarding) attribute the spend to its own credit
+      // Lets a caller (e.g. the SAM agent) attribute the spend to its own credit
       // feature. Applied to the DataForSEO calls, not the cache key, so cached
       // results stay shared across callers.
       creditFeature?: CreditFeature,
     ) {
-      const cacheKey = await buildCacheKey("backlinks:overview", {
+      const cacheKey = await buildCacheKey("backlinks:overview:v2", {
         ...buildTargetCacheInput(input, billingCustomer),
       });
 
@@ -63,7 +62,7 @@ function createBacklinksService(cache: BacklinksCache = defaultCache) {
       options?: BacklinksSpamFilterOptions,
     ) {
       const cacheKey = await buildPageCacheKey(
-        "backlinks:rows-page",
+        "backlinks:rows-page:v2",
         input,
         billingCustomer,
         options,
@@ -124,6 +123,12 @@ function buildTargetCacheInput(
     organizationId: billingCustomer.organizationId,
     target: normalizedTarget.apiTarget,
     scope: normalizedTarget.scope,
+    // Subfolder scope keeps the hostname as the API target, so the path must
+    // separate cache entries.
+    path: normalizedTarget.path,
+    // Same hostname, different result set — and keeping it in the key retires
+    // entries written before scopes could exclude subdomains.
+    includeSubdomains: normalizedTarget.includeSubdomains,
   };
 }
 
@@ -133,8 +138,6 @@ async function buildPageCacheKey(
   billingCustomer: BillingCustomerContext,
   options?: BacklinksSpamFilterOptions,
 ): Promise<string> {
-  const spamFilterOptions = normalizeBacklinksSpamFilterOptions(options);
-
   return buildCacheKey(prefix, {
     ...buildTargetCacheInput(input, billingCustomer),
     page: input.page,
@@ -143,10 +146,7 @@ async function buildPageCacheKey(
     sortOrder: input.sortOrder,
     filters: input.filters,
     ...(input.mode ? { mode: input.mode } : {}),
-    hideSpam: String(spamFilterOptions.hideSpam),
-    ...(spamFilterOptions.hideSpam
-      ? { spamThreshold: String(spamFilterOptions.spamThreshold) }
-      : {}),
+    hideSpam: String(options?.hideSpam ?? true),
   });
 }
 

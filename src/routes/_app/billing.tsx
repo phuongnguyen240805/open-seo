@@ -1,324 +1,410 @@
-import { createFileRoute, notFound } from "@tanstack/react-router";
-import { AutumnProvider, useCustomer } from "autumn-js/react";
-import { useEffect, useState } from "react";
-import { useSession } from "@/lib/auth-client";
-import { isHostedClientAuthMode } from "@/lib/auth-mode";
-import { getStandardErrorMessage } from "@/client/lib/error-messages";
-import { getStoredRedditAttribution } from "@/client/lib/reddit-attribution";
-import { BillingUsageChart } from "@/client/features/billing/BillingUsageChart";
-import { BillingFeatureBreakdown } from "@/client/features/billing/BillingFeatureBreakdown";
-import { parseTopUpAmount } from "@/client/features/billing/HostedBillingContentUtils";
-import { getBillingRouteState } from "@/client/features/billing/route-state";
-import { getCustomerPlanStatus } from "@/client/features/billing/plan-detection";
 import {
-  AUTUMN_PAID_PLAN_ID,
-  AUTUMN_SEO_DATA_BALANCE_FEATURE_ID,
-  LOW_CREDITS_THRESHOLD_USD,
-  AUTUMN_SEO_DATA_CREDITS_PER_USD,
-  AUTUMN_SEO_DATA_TOP_UP_PLAN_ID,
-  AUTUMN_SEO_DATA_TOPUP_BALANCE_FEATURE_ID,
-  autumnSeoDataCreditsToUsd,
+  Link,
+  createFileRoute,
+  notFound,
+  useNavigate,
+} from "@tanstack/react-router";
+import { z } from "zod";
+import { useState } from "react";
+import { ErrorState } from "@/client/components/ErrorState";
+import { PageHeader } from "@/client/components/PageHeader";
+import { QueryError } from "@/client/components/QueryState";
+import { Button } from "@/client/components/ui/button";
+import { Card, CardContent } from "@/client/components/ui/card";
+import { Field } from "@/client/components/ui/field";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+} from "@/client/components/ui/input-group";
+import { Skeleton } from "@/client/components/ui/skeleton";
+import { queryClient } from "@/client/tanstack-db";
+import { isHostedClientAuthMode } from "@/lib/auth-mode";
+import { useCanManageBilling } from "@/client/features/team/organizationQueries";
+import { getStandardErrorMessage } from "@/client/lib/error-messages";
+import { prefetchBillingAccount } from "@/client/features/billing/billingAccountQuery";
+import { AutoReloadSettings } from "@/client/features/billing/AutoReloadSettings";
+import { BillingRow } from "@/client/features/billing/BillingRow";
+import { BillingTabs } from "@/client/features/billing/BillingTabs";
+import { parseTopUpAmount } from "@/client/features/billing/HostedBillingContentUtils";
+import { billingUsageQueryOptions } from "@/client/features/billing/useBillingUsage";
+import { useCreditBalance } from "@/client/features/billing/useCreditBalance";
+import { BASE_PLAN_OFFER } from "@/client/features/billing/plan-offers";
+import {
+  createBillingPortalSession,
+  createTopUpCheckout,
+} from "@/serverFunctions/billing";
+import {
+  BILLING_ROUTE,
+  BILLING_TABS,
+  SUBSCRIBE_ROUTE,
+  TOP_UP_MAX_USD,
+  TOP_UP_MIN_USD,
 } from "@/shared/billing";
-import { captureRedditConversionEvent } from "@/serverFunctions/redditConversions";
 
 export const Route = createFileRoute("/_app/billing")({
+  validateSearch: z.object({
+    tab: z
+      .enum(BILLING_TABS.map((item) => item.value))
+      .optional()
+      .catch(undefined),
+  }),
+  // The loader fills the module-scoped query client, so keep it out of server
+  // requests: one worker isolate must not cache another account's billing.
+  ssr: false,
   beforeLoad: () => {
     if (!isHostedClientAuthMode()) {
       throw notFound();
     }
   },
+  // Start both reads on link intent and on a full load alongside the session
+  // check, without holding up navigation.
+  loader: () => {
+    prefetchBillingAccount();
+    void queryClient.prefetchQuery(billingUsageQueryOptions());
+  },
   component: BillingPage,
 });
 
+type BillingAction = "plan" | "topUp";
+
 function BillingPage() {
-  return (
-    <AutumnProvider>
-      <BillingPageContent />
-    </AutumnProvider>
-  );
-}
-
-function BillingPageContent() {
-  const { data: session, isPending: isSessionPending } = useSession();
+  const { tab } = Route.useSearch();
+  const navigate = useNavigate();
   const [topUpAmount, setTopUpAmount] = useState("20");
-  const [isPending, setIsPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const customerQuery = useCustomer({
-    queryOptions: {
-      enabled: Boolean(session?.user?.id),
-    },
-  });
-
-  const planStatus = getCustomerPlanStatus(customerQuery.data);
-  const isFreePlan = planStatus === "free";
-  const billingRouteState = getBillingRouteState({
-    hasSession: Boolean(session?.user?.id),
-    isSessionPending,
-    isCustomerLoading: customerQuery.isLoading,
-    isCustomerError: customerQuery.isError,
-  });
-
-  const monthlyRemaining = autumnSeoDataCreditsToUsd(
-    customerQuery.data?.balances?.[AUTUMN_SEO_DATA_BALANCE_FEATURE_ID]
-      ?.remaining ?? 0,
+  const [buyingCredits, setBuyingCredits] = useState(false);
+  const [pendingAction, setPendingAction] = useState<BillingAction | null>(
+    null,
   );
-  const topUpRemaining = autumnSeoDataCreditsToUsd(
-    customerQuery.data?.balances?.[AUTUMN_SEO_DATA_TOPUP_BALANCE_FEATURE_ID]
-      ?.remaining ?? 0,
-  );
-  const totalRemaining = monthlyRemaining + topUpRemaining;
+  const [error, setError] = useState<{
+    action: BillingAction;
+    message: string;
+  } | null>(null);
+
+  const {
+    accountQuery,
+    isFreePlan,
+    monthlyRemaining,
+    topUpRemaining,
+    totalRemaining,
+    isOutOfCredits,
+    isLowCredits,
+    refillDate,
+    autoReloadState,
+  } = useCreditBalance();
+  const account = accountQuery.data;
+  // The budget counts bought credits too, so a purchase now would sit
+  // unspent until it is raised; the notice below the button says so.
+  const budgetSpent = autoReloadState === "budget_spent";
+
+  // Subscription changes are owner-only; other members see balances but are
+  // pointed at the owner instead of checkout (the server enforces this too).
+  const canManageBilling = useCanManageBilling();
 
   const { isValid: isValidTopUp, parsed: parsedTopUpAmount } =
     parseTopUpAmount(topUpAmount);
-  const checkoutCompleted =
-    typeof window !== "undefined" &&
-    new URLSearchParams(window.location.search).get("checkout") === "success";
+  const showTopUpError = topUpAmount.trim() !== "" && !isValidTopUp;
 
-  useEffect(() => {
-    if (!checkoutCompleted || billingRouteState !== "ready") return;
-
-    const attribution = getStoredRedditAttribution();
-    if (!attribution) return;
-
-    void captureRedditConversionEvent({
-      data: { attribution, eventType: "PURCHASE" },
-    });
-  }, [billingRouteState, checkoutCompleted]);
-
-  if (billingRouteState === "loading") {
-    return null;
-  }
-
-  if (billingRouteState === "error") {
-    return (
-      <div className="mx-auto w-full max-w-2xl space-y-4 p-4 py-10 md:p-6 md:py-12">
-        <h1 className="text-xl font-semibold">Billing unavailable</h1>
-        <p className="text-sm text-base-content/70">
-          {getStandardErrorMessage(
-            customerQuery.error,
-            "We couldn't load your billing details right now. Please try again.",
-          )}
-        </p>
-        <button
-          type="button"
-          className="btn btn-soft btn-sm"
-          onClick={() => {
-            void customerQuery.refetch();
-          }}
-        >
-          Try again
-        </button>
-      </div>
-    );
-  }
-
+  // Each action ends by sending the browser to Stripe, so the button stays
+  // pending unless it fails.
   async function runAction(
-    callback: () => Promise<unknown>,
+    action: BillingAction,
+    callback: () => Promise<void>,
     fallbackMessage: string,
   ) {
     setError(null);
-    setIsPending(true);
+    setPendingAction(action);
     try {
       await callback();
-      await customerQuery.refetch();
     } catch (err) {
-      setError(getStandardErrorMessage(err, fallbackMessage));
-    } finally {
-      setIsPending(false);
+      setError({
+        action,
+        message: getStandardErrorMessage(err, fallbackMessage),
+      });
+      setPendingAction(null);
     }
   }
 
-  if (isPending) {
-    return (
-      <div className="flex h-full items-center justify-center">
-        <p className="text-sm text-base-content/50">Redirecting to Stripe...</p>
-      </div>
+  async function startTopUpCheckout() {
+    window.location.assign(
+      await createTopUpCheckout({ data: { amountUsd: parsedTopUpAmount } }),
     );
   }
 
+  async function openPortal() {
+    window.location.assign(
+      await createBillingPortalSession({ data: { returnTo: BILLING_ROUTE } }),
+    );
+  }
+
+  function actionError(action: BillingAction) {
+    return error?.action === action ? (
+      <ErrorState message={error.message} />
+    ) : null;
+  }
+
   return (
-    <div className="mx-auto w-full max-w-2xl space-y-5 p-4 py-10 md:p-6 md:py-12">
-      <h1 className="text-xl font-semibold">Billing</h1>
+    <div className="mx-auto box-content max-w-7xl space-y-5 px-4 py-4 pb-24 md:px-6 md:py-6 md:pb-8">
+      <PageHeader title="Billing" />
 
-      <div className="grid gap-5 md:grid-cols-2">
-        {/* Subscription card */}
-        <div className="flex flex-col justify-between rounded-lg border border-base-300 bg-base-100 p-4 gap-4">
-          <div>
-            <div className="text-2xl font-semibold tabular-nums">
-              ${totalRemaining.toFixed(2)}{" "}
-              <span className="text-sm font-normal text-base-content/50">
-                remaining
-              </span>
-            </div>
-            {!isFreePlan ? (
-              <div className="mt-1 flex gap-3 text-xs text-base-content/50">
-                <span className="tabular-nums">
-                  Monthly ${monthlyRemaining.toFixed(2)}
-                </span>
-                <span>&middot;</span>
-                <span className="tabular-nums">
-                  Top-ups ${topUpRemaining.toFixed(2)}
-                </span>
-              </div>
-            ) : null}
-            {totalRemaining <= 0 ? (
-              <p className="mt-2 text-xs text-error">
-                You&rsquo;ve used all your credits.{" "}
-                {isFreePlan
-                  ? "Upgrade your plan to continue."
-                  : "Buy more credits below to continue."}
-              </p>
-            ) : totalRemaining < LOW_CREDITS_THRESHOLD_USD ? (
-              <p className="mt-2 text-xs text-amber-600">
-                You&rsquo;re running low on credits.{" "}
-                {isFreePlan
-                  ? "Upgrade to get $10/month."
-                  : "Buy more credits below."}
-              </p>
-            ) : null}
-          </div>
+      {accountQuery.isPending ? (
+        <SubscriptionCardSkeleton />
+      ) : !account ? (
+        <QueryError
+          cause={accountQuery.error}
+          fallback="We couldn't load your billing details right now. Please try again."
+          onRetry={() => void accountQuery.refetch()}
+          isRetrying={accountQuery.isFetching}
+        />
+      ) : (
+        <>
+          {accountQuery.isError ? (
+            <QueryError
+              cause={accountQuery.error}
+              fallback="Failed to refresh billing details"
+              onRetry={() => void accountQuery.refetch()}
+              isRetrying={accountQuery.isFetching}
+            />
+          ) : null}
 
-          <div className="text-sm">
-            <span className="font-medium">Plan</span>{" "}
-            <span className="text-base-content/50">
-              {isFreePlan ? "Free Plan" : "Base Plan"}
-            </span>
-          </div>
-
-          {isFreePlan ? (
-            <div className="space-y-3 border-t border-base-300 pt-3">
-              <div className="flex items-baseline justify-between gap-4">
-                <span className="text-sm font-medium">Base Plan</span>
-                <span className="text-sm font-medium tabular-nums">
-                  $10/month
+          <Card className="max-w-4xl gap-0 divide-y divide-border py-0">
+            <div className="px-4 py-4">
+              <div className="text-2xl font-semibold tabular-nums">
+                ${totalRemaining.toFixed(2)}{" "}
+                <span className="text-sm font-normal text-muted-foreground">
+                  remaining
                 </span>
               </div>
-              <ul className="space-y-1.5">
-                {[
-                  "Access to all OpenSEO features",
-                  "Includes $10.00 of Usage Credits each month",
-                ].map((item) => (
-                  <li
-                    key={item}
-                    className="flex gap-2 text-xs text-base-content/60"
-                  >
-                    <span className="text-base-content/30 mt-[1px] shrink-0">
-                      &mdash;
-                    </span>
-                    {item}
-                  </li>
-                ))}
-              </ul>
-              <button
-                className="btn btn-soft btn-sm w-full"
-                disabled={isPending}
-                onClick={() =>
-                  void runAction(
-                    () =>
-                      customerQuery.attach({
-                        planId: AUTUMN_PAID_PLAN_ID,
-                        redirectMode: "always",
-                        successUrl: `${window.location.origin}${window.location.pathname}?checkout=success`,
-                      }),
-                    "We couldn't start the checkout. Please try again.",
-                  )
-                }
-              >
-                Upgrade Plan
-              </button>
-            </div>
-          ) : (
-            <button
-              className="btn btn-soft btn-sm w-full"
-              disabled={isPending}
-              onClick={() =>
-                void runAction(
-                  () =>
-                    customerQuery.openCustomerPortal({
-                      returnUrl: window.location.href,
-                    }),
-                  "We couldn't open the billing portal. Please try again.",
-                )
-              }
-            >
-              Manage subscription
-            </button>
-          )}
-        </div>
-
-        {/* Buy credits card — paid plan only */}
-        {!isFreePlan ? (
-          <div className="rounded-lg border border-base-300 bg-base-100 p-4 space-y-3">
-            <div>
-              <span className="font-semibold">Buy credits</span>
-              <p className="mt-1 text-sm text-base-content/60">
-                Top-up credits never expire and are used after your monthly
-                credits.
-              </p>
-            </div>
-
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-base-content/60">$</span>
-                <input
-                  type="number"
-                  min={10}
-                  max={99}
-                  step={1}
-                  inputMode="numeric"
-                  className="input input-bordered input-sm w-full"
-                  value={topUpAmount}
-                  onChange={(e) => setTopUpAmount(e.target.value)}
-                />
-              </div>
-              {topUpAmount.trim() !== "" && !isValidTopUp ? (
-                <p className="mt-1 text-xs text-error">
-                  Enter between $10–$99.
+              {!isFreePlan ? (
+                <div className="mt-1 flex gap-3 text-xs text-muted-foreground">
+                  <span className="tabular-nums">
+                    Monthly ${monthlyRemaining.toFixed(2)}
+                  </span>
+                  <span>&middot;</span>
+                  <span className="tabular-nums">
+                    Top-ups ${topUpRemaining.toFixed(2)}
+                  </span>
+                </div>
+              ) : null}
+              {isOutOfCredits ? (
+                <p className="mt-2 text-xs text-destructive">
+                  {isFreePlan
+                    ? "You’ve used your free credits. Upgrade your plan to continue."
+                    : `You’ve used this month’s credits. Buy more below to keep going${
+                        refillDate
+                          ? `, or wait for them to refill on ${refillDate}`
+                          : ""
+                      }.`}
+                </p>
+              ) : isLowCredits ? (
+                <p className="mt-2 text-xs text-amber-600">
+                  You&rsquo;re running low on credits.{" "}
+                  {isFreePlan
+                    ? `Upgrade to get $${BASE_PLAN_OFFER.monthlyCreditsUsd}/month.`
+                    : "Buy more credits below."}
                 </p>
               ) : null}
             </div>
 
-            <button
-              className="btn btn-soft btn-sm w-full"
-              disabled={isPending || !isValidTopUp}
-              onClick={() =>
-                void runAction(
-                  () =>
-                    customerQuery.attach({
-                      planId: AUTUMN_SEO_DATA_TOP_UP_PLAN_ID,
-                      redirectMode: "always",
-                      successUrl: window.location.href,
-                      featureQuantities: [
-                        {
-                          featureId: AUTUMN_SEO_DATA_TOPUP_BALANCE_FEATURE_ID,
-                          quantity: Math.round(
-                            parsedTopUpAmount * AUTUMN_SEO_DATA_CREDITS_PER_USD,
-                          ),
-                        },
-                      ],
-                    }),
-                  "We couldn't start the checkout. Please try again.",
+            <BillingRow
+              label="Plan"
+              summary={
+                account.paidPlanId ? (
+                  <>
+                    <span className="text-foreground">
+                      {account.paidPlanName}
+                    </span>{" "}
+                    &middot; ${account.monthlyCreditsUsd.toFixed(2)} of credits
+                    each month
+                  </>
+                ) : (
+                  <>
+                    <span className="text-foreground">Free Plan</span>
+                    {canManageBilling ? (
+                      <>
+                        {" "}
+                        &middot; Upgrade to access every feature and more
+                        credits each month
+                      </>
+                    ) : null}
+                  </>
+                )
+              }
+              action={
+                !canManageBilling ? null : isFreePlan ? (
+                  <Button
+                    size="sm"
+                    nativeButton={false}
+                    render={
+                      <Link to={SUBSCRIBE_ROUTE} search={{ upgrade: true }} />
+                    }
+                  >
+                    Upgrade Plan
+                  </Button>
+                ) : (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    pending={pendingAction === "plan"}
+                    disabled={pendingAction !== null}
+                    onClick={() =>
+                      void runAction(
+                        "plan",
+                        openPortal,
+                        "We couldn't open the billing portal. Please try again.",
+                      )
+                    }
+                  >
+                    {pendingAction === "plan"
+                      ? "Redirecting to Stripe..."
+                      : "Manage subscription"}
+                  </Button>
                 )
               }
             >
-              Buy credits
-            </button>
-          </div>
-        ) : null}
-      </div>
+              {!canManageBilling ? (
+                <p className="text-sm text-muted-foreground">
+                  Only the organization owner can change the plan or buy
+                  credits. Ask them if you need more.
+                </p>
+              ) : (
+                actionError("plan")
+              )}
+            </BillingRow>
 
-      {/* Usage chart */}
-      <BillingUsageChart />
+            {/* Owner-only. Buying needs a paid plan; free plans see what one
+                adds, so the base plan's credits aren't read as a cap. */}
+            {canManageBilling ? (
+              <BillingRow
+                label="Top-up credits"
+                summary={
+                  isFreePlan
+                    ? "Need more than your monthly credits? On a paid plan, buy as many as you need. They never expire."
+                    : "Never expire and are used after your monthly credits."
+                }
+                action={
+                  isFreePlan || buyingCredits ? null : (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setBuyingCredits(true)}
+                    >
+                      Buy credits
+                    </Button>
+                  )
+                }
+              >
+                {!isFreePlan && buyingCredits ? (
+                  <div className="space-y-3">
+                    <div className="flex flex-wrap items-start gap-2">
+                      <Field data-invalid={showTopUpError} className="w-36">
+                        <InputGroup>
+                          <InputGroupAddon>$</InputGroupAddon>
+                          <InputGroupInput
+                            type="number"
+                            min={TOP_UP_MIN_USD}
+                            max={TOP_UP_MAX_USD}
+                            step={1}
+                            inputMode="numeric"
+                            aria-label="Top-up amount in USD"
+                            aria-invalid={showTopUpError}
+                            autoFocus
+                            value={topUpAmount}
+                            onChange={(e) => setTopUpAmount(e.target.value)}
+                          />
+                        </InputGroup>
+                      </Field>
+                      <Button
+                        className="h-10"
+                        pending={pendingAction === "topUp"}
+                        disabled={
+                          !isValidTopUp || pendingAction !== null || budgetSpent
+                        }
+                        onClick={() =>
+                          void runAction(
+                            "topUp",
+                            startTopUpCheckout,
+                            "We couldn't start the checkout. Please try again.",
+                          )
+                        }
+                      >
+                        {pendingAction === "topUp"
+                          ? "Redirecting to Stripe..."
+                          : `Buy $${parsedTopUpAmount} of credits`}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        className="h-10"
+                        disabled={pendingAction !== null}
+                        onClick={() => setBuyingCredits(false)}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                    {showTopUpError ? (
+                      <p className="text-xs text-destructive">
+                        Enter between ${TOP_UP_MIN_USD}–${TOP_UP_MAX_USD}.
+                      </p>
+                    ) : null}
+                    {budgetSpent ? (
+                      <p className="text-xs text-muted-foreground">
+                        You&rsquo;ve hit your monthly auto-reload budget. Raise
+                        it below to buy more.
+                      </p>
+                    ) : null}
+                    {actionError("topUp")}
+                  </div>
+                ) : null}
+              </BillingRow>
+            ) : null}
 
-      {/* Per-feature usage breakdown */}
-      <BillingFeatureBreakdown />
+            {/* The sync turns auto-reload off when a plan ends; until that
+                lands, an owner who left the plan still sees it, so they can
+                turn it off. */}
+            {canManageBilling &&
+            (!isFreePlan || account.autoReload?.enabled) ? (
+              <AutoReloadSettings />
+            ) : canManageBilling ? (
+              <BillingRow
+                label="Auto-reload"
+                summary="On a paid plan, buy more automatically when you run low, up to a monthly budget you set."
+              />
+            ) : null}
+          </Card>
+        </>
+      )}
 
-      {error ? <p className="text-sm text-error">{error}</p> : null}
+      <BillingTabs
+        tab={tab ?? "usage"}
+        onTabChange={(next) =>
+          void navigate({
+            to: BILLING_ROUTE,
+            // Like other tabbed pages, Back leaves the page.
+            replace: true,
+            search: { tab: next === "usage" ? undefined : next },
+          })
+        }
+        invoiceEmailsEnabled={
+          canManageBilling && account ? account.invoiceEmailsEnabled : null
+        }
+      />
 
-      <p className="text-xs text-base-content/40">
+      <p className="text-xs text-muted-foreground">
         Billing is powered by Stripe.
       </p>
     </div>
+  );
+}
+
+/** The billing summary's shape while the billing account loads. */
+function SubscriptionCardSkeleton() {
+  return (
+    <Card aria-busy>
+      <CardContent className="space-y-4">
+        <Skeleton className="h-8 w-40" />
+        <Skeleton className="h-4 w-56" />
+        <Skeleton className="h-9 w-full" />
+      </CardContent>
+    </Card>
   );
 }

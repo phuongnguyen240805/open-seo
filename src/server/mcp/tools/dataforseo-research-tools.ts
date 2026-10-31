@@ -1,11 +1,11 @@
 /* eslint-disable max-lines */
+import { firstBy, sort } from "remeda";
 import { z } from "zod";
 import {
   createDataforseoClient,
-  type AdsKeywordItem,
-  type KeywordOverviewItem,
+  fetchKeywordMetricsForList,
+  type KeywordMetricRow,
 } from "@/server/lib/dataforseo";
-import { getKeywordDataProvider } from "@/shared/keyword-locations";
 import { buildProjectMeta } from "@/server/mcp/context";
 import { mcpResponse } from "@/server/mcp/formatters";
 import {
@@ -14,12 +14,42 @@ import {
 } from "@/server/mcp/output-schemas";
 import { withMcpProjectAuth } from "@/server/mcp/project-auth";
 import {
-  DEFAULT_LANGUAGE_CODE,
+  formatMcpCell,
+  formatMcpTable,
+  readPath,
+  truncatedCell,
+  type McpTableColumn,
+} from "@/server/mcp/table";
+import {
+  businessIdentifierInputSchema,
+  businessIdentifierKeyword,
+  formatBusinessDataCoordinate,
+  formatCoordinate,
+  formatLocalSerpCoordinate,
+  pickRowFields,
+  resolveBusinessIdentifier,
+} from "@/server/mcp/tools/local-seo-shared";
+import { resolveLabsMarket, resolveMarket } from "@/shared/keyword-locations";
+import {
+  assertLabsLocationCode,
+  assertLanguageForLocation,
+} from "@/server/lib/market";
+import {
   DEFAULT_LOCATION_CODE,
   languageCodeSchema,
   locationCodeSchema,
   projectIdSchema,
 } from "@/server/mcp/schemas";
+import { assertFilterConditionBudget } from "@/server/lib/dataforseo/filters";
+import {
+  buildRankedKeywordsScopeFilter,
+  type ScopeFilter,
+} from "@/server/lib/dataforseo/researchScopeFilters";
+import { parseResearchTargetOrThrow } from "@/server/lib/domainUtils";
+import {
+  RESEARCH_SCOPE_PARAM_DESCRIPTION,
+  researchScopeSchema,
+} from "@/shared/researchScope";
 
 const rankedResultTypeSchema = z.enum([
   "organic",
@@ -41,10 +71,14 @@ const marketSchema = z
     country: z
       .enum(["US", "USA", "United States", "United States of America"])
       .optional()
-      .describe("Country selector. Only the United States is supported."),
+      .describe(
+        "Country selector. Only the United States can be selected explicitly.",
+      ),
   })
   .optional()
-  .describe("Optional United States market object. Defaults to United States.");
+  .describe(
+    "Legacy US selector. Prefer locationCode/languageCode for any Labs market. Explicit locationCode takes precedence; otherwise omitted = the project's default market.",
+  );
 
 const nearSchema = z
   .object({
@@ -62,7 +96,9 @@ const nearSchema = z
       .number()
       .min(1)
       .max(100000)
-      .describe("Search radius around the center, in kilometers."),
+      .describe(
+        "Search radius around the center, in whole kilometers (fractions are rounded).",
+      ),
   })
   .describe("Coordinate and radius to search around.");
 
@@ -84,9 +120,20 @@ const localSerpNearSchema = z
       .min(4)
       .max(18)
       .optional()
-      .describe("Map zoom level (4-18). Higher zoom narrows the local area."),
+      .describe(
+        "Map zoom level (4-18). Higher zoom narrows the local area. Defaults to 12, a city-sized viewport; raise it for a neighbourhood, lower it for a metro.",
+      ),
   })
   .describe("Coordinate (and optional map zoom) the SERP is fetched from.");
+
+// A coordinate with no zoom lets DataForSEO infer one, and its guess is far too
+// tight for a city-level query: measured at San Jose's centre (37.3079,
+// -121.8917) on 2026-09-03, "bookkeeping services" returned 1 row with no zoom
+// and 20 at zoom 12; "plumber" returned 0 and 20. An agent reads that as "you
+// have no competitors". Zoom 12 is a ~12 km viewport at mid latitudes — one
+// city, not one neighbourhood and not a whole metro. 10 and 11 also return a
+// full page but span 47 km and 23 km, which drags in another city's businesses.
+const DEFAULT_LOCAL_SERP_ZOOM = 12;
 
 const domainTargetSchema = z
   .string()
@@ -116,7 +163,20 @@ const getRankedKeywordsInputSchema = {
   target: rankedTargetSchema.describe(
     "Domain (no protocol/www) or absolute page URL to list ranked keywords for.",
   ),
+  scope: researchScopeSchema
+    .optional()
+    .describe(RESEARCH_SCOPE_PARAM_DESCRIPTION),
   market: marketSchema,
+  locationCode: locationCodeSchema
+    .optional()
+    .describe(
+      "Country-level DataForSEO Labs location code. Defaults to the project's market; takes precedence over the legacy market object.",
+    ),
+  languageCode: languageCodeSchema
+    .optional()
+    .describe(
+      "Language for locationCode. Defaults to that location's primary language when locationCode overrides the project market.",
+    ),
   resultTypes: z
     .array(rankedResultTypeSchema)
     .min(1)
@@ -126,9 +186,7 @@ const getRankedKeywordsInputSchema = {
   includeSubdomains: z
     .boolean()
     .optional()
-    .describe(
-      "Include subdomains of the target. Defaults to true for domains, false for page URLs.",
-    ),
+    .describe("Deprecated: use scope ('subdomains' or 'domain') instead."),
   minSearchVolume: z
     .number()
     .int()
@@ -183,6 +241,28 @@ const searchLocalBusinessesInputSchema = {
     .max(10)
     .optional()
     .describe("Business categories to filter by (e.g. 'pizza_restaurant')."),
+  minRating: z
+    .number()
+    .min(1)
+    .max(5)
+    .optional()
+    .describe("Only return businesses rated at least this (1-5)."),
+  minReviews: z
+    .number()
+    .int()
+    .min(0)
+    .optional()
+    .describe("Only return businesses with at least this many Google reviews."),
+  isClaimed: z
+    .boolean()
+    .optional()
+    .describe(
+      "Filter by whether the listing is claimed by its owner. false surfaces unclaimed listings (outreach prospects).",
+    ),
+  sortBy: z
+    .enum(["relevance", "rating", "reviews"])
+    .optional()
+    .describe("Sort order for returned rows. Defaults to relevance."),
   limit: z
     .number()
     .int()
@@ -190,6 +270,13 @@ const searchLocalBusinessesInputSchema = {
     .max(50)
     .optional()
     .describe("Maximum businesses to return (1-50). Defaults to 20."),
+  offset: z
+    .number()
+    .int()
+    .min(0)
+    .max(1000)
+    .optional()
+    .describe("Rows to skip for pagination."),
 } as const;
 
 const localSearchTypeSchema = z.enum(["maps", "local_finder"]);
@@ -208,7 +295,9 @@ const getLocalSerpResultsInputSchema = {
   device: z
     .enum(["desktop", "mobile"])
     .optional()
-    .describe("Device the SERP is rendered for. Defaults to desktop."),
+    .describe(
+      "Device the SERP is rendered for. Defaults to mobile, matching get_local_rank_grid.",
+    ),
   depth: z
     .number()
     .int()
@@ -221,13 +310,7 @@ const getLocalSerpResultsInputSchema = {
 
 const getGoogleBusinessQuestionsInputSchema = {
   projectId: projectIdSchema,
-  keyword: z
-    .string()
-    .min(1)
-    .max(200)
-    .describe(
-      "Business name or search phrase identifying the Google Business Profile.",
-    ),
+  ...businessIdentifierInputSchema,
   near: nearSchema,
   depth: z
     .number()
@@ -247,6 +330,16 @@ const findSerpCompetitorsInputSchema = {
     .max(100)
     .describe("Keywords whose SERPs are compared (1-100)."),
   market: marketSchema,
+  locationCode: locationCodeSchema
+    .optional()
+    .describe(
+      "Country-level DataForSEO Labs location code. Defaults to the project's market; takes precedence over the legacy market object.",
+    ),
+  languageCode: languageCodeSchema
+    .optional()
+    .describe(
+      "Language for locationCode. Defaults to that location's primary language when locationCode overrides the project market.",
+    ),
   resultTypes: z
     .array(serpCompetitorResultTypeSchema)
     .min(1)
@@ -336,34 +429,45 @@ type GetGoogleBusinessQuestionsArgs = z.infer<
   z.ZodObject<typeof getGoogleBusinessQuestionsInputSchema>
 >;
 
-const QUESTIONS_ANSWERS_MIN_RADIUS = 200;
-const QUESTIONS_ANSWERS_MAX_RADIUS = 199999;
-
-function resolveMarketLocationCode(_market: Market | undefined): number {
-  // The Zod enum on market.country already restricts values to United States
-  // variants, so no other country can reach this code path.
-  return DEFAULT_LOCATION_CODE;
-}
-
-function formatCoordinate(value: number): string {
-  return Number(value.toFixed(7)).toString();
+/**
+ * Resolves a Labs location + language. Explicit location/language fields win,
+ * followed by the legacy explicit-US selector; omitted fields inherit the
+ * project's default via resolveLabsMarket, which keeps these Labs-only tools
+ * off an Ads-served project market. Validate before starting a paid request.
+ */
+function resolveMarketSelector(
+  selector: {
+    market?: Market;
+    locationCode?: number;
+    languageCode?: string;
+  },
+  project: { locationCode: number; languageCode: string },
+): { locationCode: number; languageCode: string } {
+  let resolved: { locationCode: number; languageCode: string };
+  if (selector.locationCode != null || selector.languageCode != null) {
+    resolved = resolveLabsMarket(
+      {
+        locationCode: selector.locationCode,
+        languageCode: selector.languageCode,
+      },
+      project,
+    );
+  } else if (selector.market?.country != null) {
+    // The Zod enum already restricts explicit values to United States variants.
+    resolved = { locationCode: DEFAULT_LOCATION_CODE, languageCode: "en" };
+  } else {
+    resolved = resolveLabsMarket({}, project);
+  }
+  assertLabsLocationCode(resolved.locationCode);
+  assertLanguageForLocation(resolved.locationCode, resolved.languageCode);
+  return resolved;
 }
 
 function formatBusinessLocationCoordinate(near: z.infer<typeof nearSchema>) {
-  return `${formatCoordinate(near.latitude)},${formatCoordinate(near.longitude)},${near.radiusKm}`;
-}
-
-function formatQuestionsAnswersCoordinate(near: z.infer<typeof nearSchema>) {
-  const radius = Math.min(
-    QUESTIONS_ANSWERS_MAX_RADIUS,
-    Math.max(QUESTIONS_ANSWERS_MIN_RADIUS, Math.round(near.radiusKm * 1000)),
-  );
-  return `${formatCoordinate(near.latitude)},${formatCoordinate(near.longitude)},${radius}`;
-}
-
-function formatLocalSerpCoordinate(near: z.infer<typeof localSerpNearSchema>) {
-  const coordinate = `${formatCoordinate(near.latitude)},${formatCoordinate(near.longitude)}`;
-  return near.zoom == null ? coordinate : `${coordinate},${near.zoom}z`;
+  // Business Listings rejects fractional radii ("Invalid Field:
+  // 'location_coordinate'"), unlike the meter-based business_data radius.
+  const radiusKm = Math.max(1, Math.round(near.radiusKm));
+  return `${formatCoordinate(near.latitude)},${formatCoordinate(near.longitude)},${radiusKm}`;
 }
 
 function sortOrderByRankedMode(
@@ -386,18 +490,27 @@ function pushAnd(filters: unknown[], condition: unknown[]) {
   filters.push(condition);
 }
 
-function buildRankedKeywordFilters(args: {
-  minSearchVolume?: number;
-  maxRank?: number;
-  excludeBrandTerms?: string[];
-}) {
+function buildRankedKeywordFilters(
+  args: {
+    minSearchVolume?: number;
+    maxRank?: number;
+    excludeBrandTerms?: string[];
+  },
+  scopeFilter?: ScopeFilter,
+) {
   const filters: unknown[] = [];
+  let conditionCount = 0;
+  if (scopeFilter) {
+    for (const clause of scopeFilter.clauses) pushAnd(filters, clause);
+    conditionCount += scopeFilter.conditionCount;
+  }
   if (args.minSearchVolume != null) {
     pushAnd(filters, [
       "keyword_data.keyword_info.search_volume",
       ">=",
       args.minSearchVolume,
     ]);
+    conditionCount += 1;
   }
   if (args.maxRank != null) {
     pushAnd(filters, [
@@ -405,42 +518,43 @@ function buildRankedKeywordFilters(args: {
       "<=",
       args.maxRank,
     ]);
+    conditionCount += 1;
   }
   if (args.excludeBrandTerms != null) {
     for (const term of args.excludeBrandTerms) {
       pushAnd(filters, ["keyword_data.keyword", "not_ilike", `%${term}%`]);
     }
+    conditionCount += args.excludeBrandTerms.length;
+  }
+  assertFilterConditionBudget(conditionCount);
+  return filters.length > 0 ? filters : undefined;
+}
+
+function buildLocalBusinessFilters(args: {
+  minRating?: number;
+  minReviews?: number;
+}) {
+  const filters: unknown[] = [];
+  if (args.minRating != null) {
+    pushAnd(filters, ["rating.value", ">=", args.minRating]);
+  }
+  if (args.minReviews != null) {
+    pushAnd(filters, ["rating.votes_count", ">=", args.minReviews]);
   }
   return filters.length > 0 ? filters : undefined;
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function asRecord(value: unknown): Record<string, unknown> | undefined {
-  return isRecord(value) ? value : undefined;
-}
-
-function displayValue(value: unknown): string {
-  if (typeof value === "string" || typeof value === "number") {
-    return String(value);
+function localBusinessOrderBy(
+  sortBy: SearchLocalBusinessesArgs["sortBy"],
+): string[] | undefined {
+  switch (sortBy) {
+    case "rating":
+      return ["rating.value,desc"];
+    case "reviews":
+      return ["rating.votes_count,desc"];
+    default:
+      return undefined;
   }
-  return "?";
-}
-
-function summarizeRankedKeyword(item: Record<string, unknown>): string {
-  const keywordData = asRecord(item.keyword_data);
-  const keywordInfo = asRecord(keywordData?.keyword_info);
-  const serpElement = asRecord(item.ranked_serp_element);
-  const serpItem = asRecord(serpElement?.serp_item);
-  const keyword = displayValue(keywordData?.keyword ?? item.keyword);
-  const rank = displayValue(
-    serpItem?.rank_absolute ?? serpElement?.rank_absolute ?? item.rank_absolute,
-  );
-  const volume = displayValue(keywordInfo?.search_volume);
-  const url = displayValue(serpItem?.url ?? serpElement?.url);
-  return `- "${keyword}" #${rank} vol:${volume} ${url}`.trim();
 }
 
 function sortCompetitors(
@@ -456,55 +570,41 @@ function sortCompetitors(
           ? "etv"
           : "visibility";
   const direction = sortBy === "avg_position" ? 1 : -1;
-  return items.toSorted((a, b) => {
+  return sort(items, (a, b) => {
     const aValue = typeof a[field] === "number" ? a[field] : 0;
     const bValue = typeof b[field] === "number" ? b[field] : 0;
     return (aValue - bValue) * direction;
   });
 }
 
-function normalizeKeywordOverview(item: KeywordOverviewItem) {
-  const info = item.keyword_info;
-  // Only present when the caller opted into clickstream-refined volumes.
-  const clickstreamInfo = item.keyword_info_normalized_with_clickstream;
+// Project the shared canonical metric row onto this tool's snake_case API
+// shape (kept stable for MCP clients); an absent trend stays null as before.
+function toMcpKeywordMetricRow(row: KeywordMetricRow) {
   return {
-    keyword: item.keyword,
-    search_volume:
-      clickstreamInfo?.search_volume ?? info?.search_volume ?? null,
-    keyword_difficulty: item.keyword_properties?.keyword_difficulty ?? null,
-    main_intent: item.search_intent_info?.main_intent ?? null,
-    cpc: info?.cpc ?? null,
-    competition: info?.competition ?? null,
-    competition_level: info?.competition_level ?? null,
-    monthly_searches:
-      (clickstreamInfo?.search_volume
-        ? clickstreamInfo.monthly_searches
-        : info?.monthly_searches) ?? null,
+    keyword: row.keyword,
+    search_volume: row.searchVolume,
+    keyword_difficulty: row.keywordDifficulty,
+    main_intent: row.intent,
+    cpc: row.cpc,
+    competition: row.competition,
+    competition_level: row.competitionLevel,
+    monthly_searches: row.monthlySearches.length
+      ? row.monthlySearches.map((entry) => ({
+          year: entry.year,
+          month: entry.month,
+          search_volume: entry.searchVolume,
+        }))
+      : null,
   };
 }
 
-type KeywordMetricRow = ReturnType<typeof normalizeKeywordOverview>;
-
-// Google Ads items (countries Labs doesn't cover) have no difficulty/intent.
-function normalizeAdsKeyword(item: AdsKeywordItem): KeywordMetricRow {
-  return {
-    keyword: item.keyword,
-    search_volume: item.search_volume ?? null,
-    keyword_difficulty: null,
-    main_intent: null,
-    cpc: item.cpc ?? null,
-    competition:
-      item.competition_index != null ? item.competition_index / 100 : null,
-    competition_level: item.competition ?? null,
-    monthly_searches: item.monthly_searches ?? null,
-  };
-}
+type McpKeywordMetricRow = ReturnType<typeof toMcpKeywordMetricRow>;
 
 function sortKeywordMetricRows(
-  rows: KeywordMetricRow[],
+  rows: McpKeywordMetricRow[],
   sortBy: NonNullable<GetKeywordMetricsArgs["sortBy"]> = "search_volume",
 ) {
-  return rows.toSorted((a, b) => {
+  return sort(rows, (a, b) => {
     const aValue = a[sortBy];
     const bValue = b[sortBy];
     const aNum = typeof aValue === "number" ? aValue : 0;
@@ -522,60 +622,330 @@ function hostMatchesDomain(host: string, domain: string): boolean {
   );
 }
 
+// Provider rows ship in full in structuredContent; these tables render every
+// row into the text content block so text-only MCP clients see the data, not
+// just a count. Loose rows are read positionally via readPath.
+
+type RankedKeywordRow = {
+  keyword: unknown;
+  rank: unknown;
+  volume: unknown;
+  kd: unknown;
+  intent: unknown;
+  cpc: unknown;
+  traffic: unknown;
+  url: unknown;
+};
+
+function toRankedKeywordRow(item: unknown): RankedKeywordRow {
+  return {
+    keyword:
+      readPath(item, "keyword_data", "keyword") ?? readPath(item, "keyword"),
+    rank:
+      readPath(item, "ranked_serp_element", "serp_item", "rank_absolute") ??
+      readPath(item, "ranked_serp_element", "rank_absolute") ??
+      readPath(item, "rank_absolute"),
+    volume: readPath(item, "keyword_data", "keyword_info", "search_volume"),
+    kd:
+      readPath(
+        item,
+        "keyword_data",
+        "keyword_properties",
+        "keyword_difficulty",
+      ) ?? readPath(item, "keyword_data", "keyword_info", "keyword_difficulty"),
+    intent: readPath(item, "keyword_data", "search_intent_info", "main_intent"),
+    cpc: readPath(item, "keyword_data", "keyword_info", "cpc"),
+    traffic:
+      readPath(item, "ranked_serp_element", "serp_item", "etv") ??
+      readPath(item, "ranked_serp_element", "etv"),
+    url:
+      readPath(item, "ranked_serp_element", "serp_item", "url") ??
+      readPath(item, "ranked_serp_element", "url"),
+  };
+}
+
+const RANKED_KEYWORD_COLUMNS: McpTableColumn<RankedKeywordRow>[] = [
+  { header: "keyword", value: (row) => row.keyword },
+  { header: "rank", value: (row) => row.rank },
+  { header: "volume", value: (row) => row.volume },
+  { header: "KD", value: (row) => row.kd },
+  { header: "intent", value: (row) => row.intent },
+  { header: "CPC", value: (row) => row.cpc },
+  { header: "traffic", value: (row) => row.traffic },
+  { header: "url", value: (row) => row.url },
+];
+
+// Full Business Listings rows are ~9KB each (popular_times for every day,
+// attribute trees, photo URLs) — 10 of them overflow MCP clients' tool-result
+// budgets. Return only the fields a candidate list needs; get_business_profile
+// serves the full shape for one business.
+const LOCAL_BUSINESS_ROW_FIELDS = [
+  "title",
+  "description",
+  "category",
+  "additional_categories",
+  "address",
+  "phone",
+  "url",
+  "domain",
+  "rating",
+  "is_claimed",
+  "cid",
+  "place_id",
+  "latitude",
+  "longitude",
+  "total_photos",
+  "check_url",
+] as const;
+
+// Maps SERP rows likewise ship image CDN URLs, feature ids, and contributor
+// links no consumer reads; keep identity, rank, rating, categories, and hours.
+const LOCAL_SERP_ROW_FIELDS = [
+  "rank_group",
+  "rank_absolute",
+  "title",
+  "domain",
+  "url",
+  "contact_url",
+  "address",
+  "address_info",
+  "phone",
+  "category",
+  "additional_categories",
+  "rating",
+  "rating_distribution",
+  "price_level",
+  "is_claimed",
+  "cid",
+  "place_id",
+  "latitude",
+  "longitude",
+  "total_photos",
+  "work_hours",
+  "local_justifications",
+] as const;
+
+const LOCAL_BUSINESS_COLUMNS: McpTableColumn<unknown>[] = [
+  { header: "title", value: (row) => readPath(row, "title") },
+  { header: "category", value: (row) => readPath(row, "category") },
+  { header: "rating", value: (row) => readPath(row, "rating", "value") },
+  { header: "reviews", value: (row) => readPath(row, "rating", "votes_count") },
+  { header: "claimed", value: (row) => readPath(row, "is_claimed") },
+  { header: "domain", value: (row) => readPath(row, "domain") },
+  { header: "phone", value: (row) => readPath(row, "phone") },
+  { header: "address", value: (row) => readPath(row, "address") },
+  // The ids are what get_business_profile / reviews / updates take, so a
+  // text-only client needs them here to follow the tool descriptions.
+  { header: "cid", value: (row) => readPath(row, "cid") },
+  { header: "place_id", value: (row) => readPath(row, "place_id") },
+];
+
+const LOCAL_SERP_COLUMNS: McpTableColumn<unknown>[] = [
+  {
+    header: "rank",
+    value: (row) =>
+      readPath(row, "rank_absolute") ?? readPath(row, "rank_group"),
+  },
+  { header: "title", value: (row) => readPath(row, "title") },
+  { header: "rating", value: (row) => readPath(row, "rating", "value") },
+  { header: "reviews", value: (row) => readPath(row, "rating", "votes_count") },
+  { header: "phone", value: (row) => readPath(row, "phone") },
+  { header: "address", value: (row) => readPath(row, "address") },
+  { header: "cid", value: (row) => readPath(row, "cid") },
+  { header: "place_id", value: (row) => readPath(row, "place_id") },
+];
+
+// Q&A rows carry a ~300-char uule URL plus avatar/contributor links on every
+// question AND every nested answer; keep the text, author, and timing.
+const BUSINESS_QUESTION_ROW_FIELDS = [
+  "rank_absolute",
+  "question_id",
+  "question_text",
+  "original_question_text",
+  "profile_name",
+  "time_ago",
+  "timestamp",
+] as const;
+
+const BUSINESS_ANSWER_ROW_FIELDS = [
+  "answer_id",
+  "answer_text",
+  "original_answer_text",
+  "profile_name",
+  "time_ago",
+  "timestamp",
+] as const;
+
+function trimBusinessQuestionRow(row: unknown): Record<string, unknown> {
+  const trimmed = pickRowFields(row, BUSINESS_QUESTION_ROW_FIELDS);
+  const answers = readPath(row, "items");
+  trimmed.items = Array.isArray(answers)
+    ? answers.map((answer) => pickRowFields(answer, BUSINESS_ANSWER_ROW_FIELDS))
+    : null;
+  return trimmed;
+}
+
+/** Answers without a timestamp sort last; ties keep the earlier answer. */
+function answerTimestamp(answer: unknown): string {
+  const at = readPath(answer, "timestamp");
+  return typeof at === "string" ? at : "";
+}
+
+// The answers are half of what this tool fetches, so the text table carries the
+// most recent one; the full thread stays in structuredContent. Provider order
+// isn't guaranteed, so pick by timestamp and fall back to the first answer.
+function latestAnswerText(row: unknown): unknown {
+  const items = readPath(row, "items");
+  if (!Array.isArray(items) || items.length === 0) return undefined;
+  const answers: unknown[] = items;
+  const latest = firstBy(answers, [answerTimestamp, "desc"]);
+  return (
+    readPath(latest, "answer_text") ?? readPath(latest, "original_answer_text")
+  );
+}
+
+const BUSINESS_QUESTION_COLUMNS: McpTableColumn<unknown>[] = [
+  {
+    header: "question",
+    value: (row) =>
+      readPath(row, "question_text") ?? readPath(row, "original_question_text"),
+  },
+  { header: "asked by", value: (row) => readPath(row, "profile_name") },
+  { header: "when", value: (row) => readPath(row, "time_ago") },
+  {
+    header: "answers",
+    value: (row) => {
+      const answers = readPath(row, "items");
+      return Array.isArray(answers) ? answers.length : 0;
+    },
+  },
+  {
+    header: "latest answer",
+    value: latestAnswerText,
+    format: truncatedCell(160),
+  },
+];
+
+const SERP_COMPETITOR_COLUMNS: McpTableColumn<unknown>[] = [
+  { header: "domain", value: (row) => readPath(row, "domain") },
+  { header: "keywords", value: (row) => readPath(row, "keywords_count") },
+  { header: "avg pos", value: (row) => readPath(row, "avg_position") },
+  { header: "median pos", value: (row) => readPath(row, "median_position") },
+  { header: "visibility", value: (row) => readPath(row, "visibility") },
+  { header: "etv", value: (row) => readPath(row, "etv") },
+];
+
+function monthOrdinal(entry: unknown): number {
+  const year = readPath(entry, "year");
+  const month = readPath(entry, "month");
+  return (
+    (typeof year === "number" ? year : 0) * 12 +
+    (typeof month === "number" ? month : 0)
+  );
+}
+
+/** Render monthly_searches as the last three volumes, oldest → newest
+ *  ("880 → 1300 → 1900"). Provider order isn't guaranteed, so sort by
+ *  year/month before slicing; the full series stays in structuredContent. */
+function monthlyTrendCell(value: unknown): string {
+  if (!Array.isArray(value) || value.length === 0) return "—";
+  return sort(value, (a, b) => monthOrdinal(a) - monthOrdinal(b))
+    .slice(-3)
+    .map((entry) => formatMcpCell(readPath(entry, "search_volume")))
+    .join(" → ");
+}
+
+const KEYWORD_METRIC_COLUMNS: McpTableColumn<unknown>[] = [
+  { header: "keyword", value: (row) => readPath(row, "keyword") },
+  { header: "volume", value: (row) => readPath(row, "search_volume") },
+  {
+    header: "trend",
+    value: (row) => readPath(row, "monthly_searches"),
+    format: monthlyTrendCell,
+  },
+  { header: "KD", value: (row) => readPath(row, "keyword_difficulty") },
+  { header: "CPC", value: (row) => readPath(row, "cpc") },
+  { header: "competition", value: (row) => readPath(row, "competition") },
+  { header: "intent", value: (row) => readPath(row, "main_intent") },
+];
+
 export const getRankedKeywordsTool = {
   name: "get_ranked_keywords",
   config: {
     title: "Get ranked keywords",
     description:
-      "Returns exact keyword, URL, rank, search volume, CPC, intent, and traffic rows for a domain or page. Use this for strategy evidence; use get_domain_overview for aggregate domain footprint. Charges credits.",
+      "Returns market-specific keyword, URL, rank, search volume, CPC, intent, and traffic rows for a domain or page. Accepts country-level DataForSEO Labs location/language codes. Use this for strategy evidence; use get_domain_overview for aggregate domain footprint. Charges credits.",
     inputSchema: getRankedKeywordsInputSchema,
-    outputSchema: {
+    outputSchema: z.looseObject({
       keywords: z.array(looseObjectOutputSchema),
       totalCount: z.number().nullable(),
+      target: z.string().optional(),
+      scope: researchScopeSchema.optional(),
       ...optionalMetaOutputSchema,
-    },
+    }),
     annotations: {
-      readOnlyHint: true,
-      openWorldHint: false,
+      readOnlyHint: false,
+      openWorldHint: true,
       destructiveHint: false,
     },
   },
   handler: withMcpProjectAuth(async (args: GetRankedKeywordsArgs, context) => {
     const client = createDataforseoClient(context.billing);
-    const targetIsPage = /^https?:\/\//.test(args.target);
+    // Legacy includeSubdomains only ever selected between whole-host scopes
+    // for bare domains; for page URLs it meant exact-page results. Mapping it
+    // to domain/subdomains for a URL target would silently drop the path.
+    const parsedDefault = parseResearchTargetOrThrow(args.target);
+    const legacyScope =
+      args.includeSubdomains == null
+        ? undefined
+        : parsedDefault.path === ""
+          ? args.includeSubdomains
+            ? "subdomains"
+            : "domain"
+          : "exact_url";
+    const requestedScope = args.scope ?? legacyScope;
+    const target = requestedScope
+      ? parseResearchTargetOrThrow(args.target, requestedScope)
+      : parsedDefault;
+    const scopeFilter = buildRankedKeywordsScopeFilter(target);
+    const market = resolveMarketSelector(args, context.project);
     const keywords = await client.domain.rankedKeywords({
-      target: args.target,
-      locationCode: resolveMarketLocationCode(args.market),
-      languageCode: DEFAULT_LANGUAGE_CODE,
+      target: target.hostname,
+      locationCode: market.locationCode,
+      languageCode: market.languageCode,
       limit: args.limit ?? 50,
       offset: args.offset,
       orderBy: sortOrderByRankedMode(args.sortBy),
-      filters: buildRankedKeywordFilters({
-        minSearchVolume: args.minSearchVolume,
-        maxRank: args.maxRank,
-        excludeBrandTerms: args.excludeBrandTerms,
-      }),
+      filters: buildRankedKeywordFilters(
+        {
+          minSearchVolume: args.minSearchVolume,
+          maxRank: args.maxRank,
+          excludeBrandTerms: args.excludeBrandTerms,
+        },
+        scopeFilter,
+      ),
       itemTypes: args.resultTypes,
-      includeSubdomains: args.includeSubdomains ?? !targetIsPage,
     });
 
+    const rankedRows = keywords.items.map(toRankedKeywordRow);
+    const targetLabel = `${target.display} (scope: ${target.scope})`;
+    const text =
+      rankedRows.length === 0
+        ? `No ranked keyword rows for ${targetLabel}.`
+        : `Found ${rankedRows.length} ranked keyword rows for ${targetLabel}${keywords.totalCount != null ? ` (of ${keywords.totalCount} total)` : ""}. Columns: KD = keyword difficulty (0-100), traffic = estimated monthly organic visits from this keyword; "—" = unavailable.\n${formatMcpTable(rankedRows, RANKED_KEYWORD_COLUMNS)}`;
     return mcpResponse({
-      text: [
-        `Found ${keywords.items.length} ranked keyword rows for ${args.target}.`,
-        ...keywords.items
-          .slice(0, 10)
-          .map((item) =>
-            summarizeRankedKeyword(item as Record<string, unknown>),
-          ),
-      ].join("\n"),
+      text,
       meta: buildProjectMeta(
         context,
         args.projectId,
         `/p/${args.projectId}/domain`,
+        { domain: target.display, scope: target.scope },
       ),
       structuredContent: {
         keywords: keywords.items,
         totalCount: keywords.totalCount,
+        target: target.display,
+        scope: target.scope,
       },
     });
   }),
@@ -586,30 +956,41 @@ export const searchLocalBusinessesTool = {
   config: {
     title: "Search local businesses",
     description:
-      "Searches local business listings near a coordinate. Use this to find local business candidates or nearby competitors; it does not run Maps rank checks or Q&A. Charges credits.",
+      "Searches local business listings near a coordinate, with optional rating, review-count, and claimed-status filters. Use this to discover businesses you cannot name yet: local candidates, nearby competitors, or unclaimed listings. It does not run Maps rank checks or Q&A. When you already know the business, use get_business_profile instead — it returns the full profile and costs less than half the credits, so it is also the cheap way to check whether a Google Business Profile exists at all. Charges credits.",
     inputSchema: searchLocalBusinessesInputSchema,
-    outputSchema: {
+    outputSchema: z.looseObject({
       businesses: z.array(looseObjectOutputSchema),
       ...optionalMetaOutputSchema,
-    },
+    }),
     annotations: {
-      readOnlyHint: true,
-      openWorldHint: false,
+      readOnlyHint: false,
+      openWorldHint: true,
       destructiveHint: false,
     },
   },
   handler: withMcpProjectAuth(
     async (args: SearchLocalBusinessesArgs, context) => {
       const client = createDataforseoClient(context.billing);
-      const businesses = await client.business.businessListings({
+      const rows = await client.business.businessListings({
         categories: args.categories,
         title: args.query,
         locationCoordinate: formatBusinessLocationCoordinate(args.near),
+        isClaimed: args.isClaimed,
+        filters: buildLocalBusinessFilters(args),
+        orderBy: localBusinessOrderBy(args.sortBy),
         limit: args.limit ?? 20,
+        offset: args.offset,
       });
+      const businesses = rows.map((row) =>
+        pickRowFields(row, LOCAL_BUSINESS_ROW_FIELDS),
+      );
 
+      const header = `Found ${businesses.length} local business rows${args.query ? ` for ${args.query}` : ""}.`;
       return mcpResponse({
-        text: `Found ${businesses.length} local business rows${args.query ? ` for ${args.query}` : ""}.`,
+        text:
+          businesses.length === 0
+            ? header
+            : `${header}\n${formatMcpTable(businesses, LOCAL_BUSINESS_COLUMNS)}`,
         meta: buildProjectMeta(context, args.projectId, `/p/${args.projectId}`),
         structuredContent: { businesses },
       });
@@ -622,33 +1003,43 @@ export const getLocalSerpResultsTool = {
   config: {
     title: "Get local SERP results",
     description:
-      "Fetches one Google Maps or Local Finder SERP near a coordinate. Returns provider rows with rank fields intact; callers decide how to match a target business. Charges credits.",
+      "Fetches one Google Maps or Local Finder SERP near a coordinate. Returns trimmed provider rows (identity, rank, rating, categories, hours) with rank fields intact; callers decide how to match a target business. Charges credits.",
     inputSchema: getLocalSerpResultsInputSchema,
-    outputSchema: {
+    outputSchema: z.looseObject({
       results: z.array(looseObjectOutputSchema),
       ...optionalMetaOutputSchema,
-    },
+    }),
     annotations: {
-      readOnlyHint: true,
-      openWorldHint: false,
+      readOnlyHint: false,
+      openWorldHint: true,
       destructiveHint: false,
     },
   },
   handler: withMcpProjectAuth(
     async (args: GetLocalSerpResultsArgs, context) => {
       const client = createDataforseoClient(context.billing);
-      const results = await client.serp.local({
+      const rows = await client.serp.local({
         keyword: args.keyword,
-        locationCoordinate: formatLocalSerpCoordinate(args.near),
-        languageCode: args.languageCode ?? DEFAULT_LANGUAGE_CODE,
+        locationCoordinate: formatLocalSerpCoordinate({
+          ...args.near,
+          zoom: args.near.zoom ?? DEFAULT_LOCAL_SERP_ZOOM,
+        }),
+        languageCode: args.languageCode ?? context.project.languageCode,
         searchType: args.searchType ?? "maps",
-        device: args.device ?? "desktop",
+        device: args.device ?? "mobile",
         depth: args.depth ?? 20,
         searchPlaces: false,
       });
+      const results = rows.map((row) =>
+        pickRowFields(row, LOCAL_SERP_ROW_FIELDS),
+      );
 
+      const header = `Fetched ${results.length} local SERP rows for "${args.keyword}".`;
       return mcpResponse({
-        text: `Fetched ${results.length} local SERP rows for "${args.keyword}".`,
+        text:
+          results.length === 0
+            ? header
+            : `${header}\n${formatMcpTable(results, LOCAL_SERP_COLUMNS)}`,
         meta: buildProjectMeta(context, args.projectId, `/p/${args.projectId}`),
         structuredContent: { results },
       });
@@ -661,30 +1052,37 @@ export const getGoogleBusinessQuestionsTool = {
   config: {
     title: "Get Google business questions",
     description:
-      "Fetches Google Business Profile questions and answers for one business keyword near a coordinate. Run this only when Q&A evidence is needed. Charges credits.",
+      "Fetches Google Business Profile questions and answers for one business (by businessName, cid, or placeId) near a coordinate. Run this only when Q&A evidence is needed. Charges credits.",
     inputSchema: getGoogleBusinessQuestionsInputSchema,
-    outputSchema: {
+    outputSchema: z.looseObject({
       questions: z.array(looseObjectOutputSchema),
       ...optionalMetaOutputSchema,
-    },
+    }),
     annotations: {
-      readOnlyHint: true,
-      openWorldHint: false,
+      readOnlyHint: false,
+      openWorldHint: true,
       destructiveHint: false,
     },
   },
   handler: withMcpProjectAuth(
     async (args: GetGoogleBusinessQuestionsArgs, context) => {
+      const identifier = resolveBusinessIdentifier(args);
       const client = createDataforseoClient(context.billing);
-      const questions = await client.business.questionsAnswers({
-        keyword: args.keyword,
-        locationCoordinate: formatQuestionsAnswersCoordinate(args.near),
-        languageCode: args.languageCode ?? DEFAULT_LANGUAGE_CODE,
+      const rows = await client.business.questionsAnswers({
+        // The questions endpoint shares the cid:/place_id: keyword prefixes.
+        keyword: businessIdentifierKeyword(identifier),
+        locationCoordinate: formatBusinessDataCoordinate(args.near),
+        languageCode: args.languageCode ?? context.project.languageCode,
         depth: args.depth ?? 20,
       });
+      const questions = rows.map(trimBusinessQuestionRow);
 
+      const header = `Fetched ${questions.length} Google Business Q&A rows for ${businessIdentifierKeyword(identifier)}.`;
       return mcpResponse({
-        text: `Fetched ${questions.length} Google Business Q&A rows for ${args.keyword}.`,
+        text:
+          questions.length === 0
+            ? header
+            : `${header} Columns: answers = answer count, latest answer = most recent answer text (truncated; every answer is in structuredContent).\n${formatMcpTable(questions, BUSINESS_QUESTION_COLUMNS)}`,
         meta: buildProjectMeta(context, args.projectId, `/p/${args.projectId}`),
         structuredContent: { questions },
       });
@@ -697,25 +1095,26 @@ export const findSerpCompetitorsTool = {
   config: {
     title: "Find SERP competitors",
     description:
-      "Compares domains competing in Google results for a supplied keyword set. Useful for market and search-intelligence reports; not radius-based local SEO. Charges credits.",
+      "Compares domains competing in Google results for a supplied keyword set in a country-level DataForSEO Labs market. Accepts location/language codes; not radius-based local SEO. Charges credits.",
     inputSchema: findSerpCompetitorsInputSchema,
-    outputSchema: {
+    outputSchema: z.looseObject({
       competitors: z.array(looseObjectOutputSchema),
       ...optionalMetaOutputSchema,
-    },
+    }),
     annotations: {
-      readOnlyHint: true,
-      openWorldHint: false,
+      readOnlyHint: false,
+      openWorldHint: true,
       destructiveHint: false,
     },
   },
   handler: withMcpProjectAuth(
     async (args: FindSerpCompetitorsArgs, context) => {
       const client = createDataforseoClient(context.billing);
+      const market = resolveMarketSelector(args, context.project);
       const competitors = await client.labs.serpCompetitors({
         keywords: args.keywords,
-        locationCode: resolveMarketLocationCode(args.market),
-        languageCode: DEFAULT_LANGUAGE_CODE,
+        locationCode: market.locationCode,
+        languageCode: market.languageCode,
         itemTypes: args.resultTypes ?? ["organic", "local_pack"],
         includeSubdomains: args.includeSubdomains,
         limit: args.limit ?? 50,
@@ -733,8 +1132,12 @@ export const findSerpCompetitorsTool = {
             });
       const sorted = sortCompetitors(filtered, args.sortBy ?? "visibility");
 
+      const header = `Found ${sorted.length} SERP competitors across ${args.keywords.length} keywords.`;
       return mcpResponse({
-        text: `Found ${sorted.length} SERP competitors across ${args.keywords.length} keywords.`,
+        text:
+          sorted.length === 0
+            ? header
+            : `${header}\n${formatMcpTable(sorted, SERP_COMPETITOR_COLUMNS)}`,
         meta: buildProjectMeta(
           context,
           args.projectId,
@@ -753,41 +1156,31 @@ export const getKeywordMetricsTool = {
     description:
       "Hydrate up to 700 known keywords with search volume, keyword difficulty (KD), search intent, CPC, competition, and monthly trends in a single call. Use it to score candidate or known keywords — including Search Console striking-distance queries — by real demand and ranking difficulty. For countries served from Google Ads data (e.g. Iceland), KD and intent are null. Charges credits.",
     inputSchema: getKeywordMetricsInputSchema,
-    outputSchema: {
+    outputSchema: z.looseObject({
       keywords: z.array(looseObjectOutputSchema),
       ...optionalMetaOutputSchema,
-    },
+    }),
     annotations: {
-      readOnlyHint: true,
-      openWorldHint: false,
+      readOnlyHint: false,
+      openWorldHint: true,
       destructiveHint: false,
     },
   },
   handler: withMcpProjectAuth(async (args: GetKeywordMetricsArgs, context) => {
+    const { locationCode, languageCode } = resolveMarket(args, context.project);
+    // Assert against the RESOLVED pair: an explicit language with an omitted
+    // location must validate against the project's default location.
+    assertLanguageForLocation(locationCode, languageCode);
     const client = createDataforseoClient(context.billing);
-    const locationCode = args.locationCode ?? DEFAULT_LOCATION_CODE;
-    const languageCode = args.languageCode ?? DEFAULT_LANGUAGE_CODE;
-    const normalized =
-      getKeywordDataProvider(locationCode) === "google_ads"
-        ? (
-            await client.keywords.adsSearchVolume({
-              keywords: args.keywords,
-              locationCode,
-              languageCode,
-              creditFeature: "keyword_research",
-            })
-          ).map(normalizeAdsKeyword)
-        : (
-            await client.labs.keywordOverview({
-              keywords: args.keywords,
-              locationCode,
-              languageCode,
-              includeClickstreamData: args.includeClickstreamData ?? false,
-              creditFeature: "keyword_research",
-            })
-          ).map(normalizeKeywordOverview);
+    const metrics = await fetchKeywordMetricsForList(client, {
+      keywords: args.keywords,
+      locationCode,
+      languageCode,
+      includeClickstreamData: args.includeClickstreamData ?? false,
+      creditFeature: "keyword_research",
+    });
     const rows = sortKeywordMetricRows(
-      normalized,
+      metrics.map(toMcpKeywordMetricRow),
       args.sortBy ?? "search_volume",
     ).map((row) =>
       args.includeMonthlyTrends === false
@@ -797,8 +1190,12 @@ export const getKeywordMetricsTool = {
         : row,
     );
 
+    const header = `Fetched metrics for ${rows.length} keywords. Columns: volume = monthly searches, trend = search volume for the last 3 months, oldest → newest, KD = keyword difficulty (0-100), CPC in USD, competition = paid competition (0-1); "—" = unavailable.`;
     return mcpResponse({
-      text: `Fetched metrics (volume, difficulty, intent) for ${rows.length} keywords.`,
+      text:
+        rows.length === 0
+          ? header
+          : `${header}\n${formatMcpTable(rows, KEYWORD_METRIC_COLUMNS)}`,
       meta: buildProjectMeta(
         context,
         args.projectId,

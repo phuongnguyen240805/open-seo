@@ -1,72 +1,77 @@
 import * as React from "react";
+import { projectsQueryOptions } from "@/client/features/projects/projectQueries";
 import { Link, useLocation } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import {
-  ChevronDown,
-  CircleHelp,
-  CreditCard,
-  Menu,
-  Settings,
-  User,
-} from "lucide-react";
-import {
-  AppContent,
+  LegacyDockerBanner,
   MissingSeoSetupModal,
   SeoApiStatusBanners,
 } from "@/client/layout/AppShellParts";
 import { GscReEngagementModal } from "@/client/features/gsc/GscReEngagementModal";
-import { getProjectNavGroups } from "@/client/navigation/items";
-import { signOutAndRedirect, useSession } from "@/lib/auth-client";
-import { isHostedClientAuthMode } from "@/lib/auth-mode";
+import { Sidebar } from "@/client/components/Sidebar";
 import { BILLING_ROUTE } from "@/shared/billing";
 import { getSeoApiKeyStatus } from "@/serverFunctions/config";
-import { getProjects } from "@/serverFunctions/projects";
-import { ProjectSwitcher } from "@/client/features/projects/ProjectSwitcher";
 import { getLastProjectId } from "@/client/lib/active-project";
-
-const DATAFORSEO_HELP_PATH = "/help/dataforseo-api-key";
-const SUPPORT_PATH = "/support";
+import { dataforseoHelpLinkOptions } from "@/client/navigation/items";
+import {
+  SidebarInset,
+  SidebarProvider,
+  SidebarTrigger,
+} from "@/client/components/ui/sidebar";
 
 export function AuthenticatedAppLayout({
   children,
   projectId,
+  ready,
   banner,
 }: {
   children: React.ReactNode;
   projectId?: string;
+  /** The session is confirmed. Until then the shell renders but loads nothing. */
+  ready: boolean;
   banner?: React.ReactNode;
 }) {
   const location = useLocation();
-  const [drawerOpen, setDrawerOpen] = React.useState(false);
-  const setupModalRef = React.useRef<HTMLDivElement | null>(null);
   const [showMissingSeoApiKeyModal, setShowMissingSeoApiKeyModal] =
     React.useState(false);
   // On non-project pages (e.g. /settings) there's no projectId in the URL, so
   // derive one for the nav/switcher: prefer the last-visited project, else the
-  // most recent. Reading localStorage in an effect keeps SSR/first render stable.
+  // most recent. The whole app tree is client-only (see root ClientOnly), so we
+  // can read localStorage synchronously during render — this lets the sidebar
+  // show the full project nav on the very first paint instead of briefly
+  // flashing only the always-visible Connect group while projects load. It is
+  // read on every render, not once: the shell stays mounted across project
+  // pages, which update the remembered project as the user moves between them.
   const projectsQuery = useQuery({
-    queryKey: ["projects"],
-    queryFn: () => getProjects(),
-    enabled: !projectId,
+    ...projectsQueryOptions(),
+    enabled: ready && !projectId,
   });
-  const [rememberedProjectId, setRememberedProjectId] = React.useState<
-    string | null
-  >(null);
-  React.useEffect(() => {
-    setRememberedProjectId(getLastProjectId());
-  }, []);
+  const rememberedProjectId = getLastProjectId();
   const fallbackProjects = projectsQuery.data ?? [];
   const fallbackProjectId =
     fallbackProjects.find((project) => project.id === rememberedProjectId)
       ?.id ??
     fallbackProjects[0]?.id ??
     null;
-  const headerProjectId = projectId ?? fallbackProjectId;
-  const shouldCheckSeoApiKeyStatus = location.pathname !== BILLING_ROUTE;
+  // Once the projects list loads, fallbackProjectId is the validated choice
+  // (remembered-if-valid, else most recent). Before it loads, fall back to the
+  // remembered id so the project nav renders immediately; a stale id here only
+  // builds links that self-correct via the route guard once data arrives.
+  const sidebarProjectId =
+    projectId ?? fallbackProjectId ?? rememberedProjectId;
+  // No project to show yet, but the list that may name one is still loading
+  // (a first visit to a page without a project in the URL).
+  const sidebarProjectPending =
+    sidebarProjectId === null && projectsQuery.isPending;
+  // The setup guide is where the modal and banners send the user, so it shows
+  // neither: a banner there would link to the page the user is already on.
+  const shouldCheckSeoApiKeyStatus =
+    location.pathname !== BILLING_ROUTE &&
+    location.pathname !== dataforseoHelpLinkOptions.to;
   const seoApiKeyStatusQuery = useQuery({
     queryKey: ["seoApiKeyStatus"],
     queryFn: () => getSeoApiKeyStatus(),
-    enabled: shouldCheckSeoApiKeyStatus,
+    enabled: ready && shouldCheckSeoApiKeyStatus,
   });
   const isSeoApiKeyConfigured = shouldCheckSeoApiKeyStatus
     ? (seoApiKeyStatusQuery.data?.configured ?? null)
@@ -95,293 +100,52 @@ export function AuthenticatedAppLayout({
     shouldCheckSeoApiKeyStatus,
   ]);
 
-  const shouldShowMissingSeoApiKeyModal =
-    showMissingSeoApiKeyModal && location.pathname !== DATAFORSEO_HELP_PATH;
-
   const shouldShowSeoApiWarning =
     !seoApiKeyStatusError &&
     isSeoApiKeyConfigured === false &&
-    !shouldShowMissingSeoApiKeyModal;
-
-  React.useEffect(() => {
-    if (!shouldShowMissingSeoApiKeyModal) return;
-
-    setupModalRef.current?.focus();
-
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setShowMissingSeoApiKeyModal(false);
-      }
-    };
-
-    window.addEventListener("keydown", onKeyDown);
-    return () => {
-      window.removeEventListener("keydown", onKeyDown);
-    };
-  }, [shouldShowMissingSeoApiKeyModal]);
-
-  React.useEffect(() => {
-    if (!projectId) {
-      setDrawerOpen(false);
-    }
-  }, [projectId]);
+    !showMissingSeoApiKeyModal;
 
   return (
-    <div className="flex h-[100dvh] flex-col bg-base-200">
-      <TopNav
-        drawerOpen={drawerOpen}
-        projectId={headerProjectId}
-        pathname={location.pathname}
-        onOpenDrawer={() => setDrawerOpen(true)}
+    <SidebarProvider className="h-[100dvh] min-h-0 overflow-hidden">
+      <Sidebar
+        projectId={sidebarProjectId}
+        projectPending={sidebarProjectPending}
+        ready={ready}
       />
+      <SidebarInset className="min-h-0 overflow-hidden md:!m-0 md:!mt-2 md:!rounded-none md:!rounded-tl-lg md:border-l md:border-t md:border-sidebar-border md:!shadow-none">
+        <MobileTopBar />
+        <SeoApiStatusBanners
+          shouldShowSeoApiWarning={shouldShowSeoApiWarning}
+          seoApiKeyStatusError={seoApiKeyStatusError}
+        />
+        <LegacyDockerBanner />
+        {banner}
+        <div className="min-h-0 flex-1 overflow-auto">{children}</div>
+      </SidebarInset>
 
-      <SeoApiStatusBanners
-        shouldShowSeoApiWarning={shouldShowSeoApiWarning}
-        seoApiKeyStatusError={seoApiKeyStatusError}
-      />
+      {showMissingSeoApiKeyModal ? (
+        <MissingSeoSetupModal
+          onClose={() => setShowMissingSeoApiKeyModal(false)}
+        />
+      ) : null}
 
-      {banner}
-
-      <AppContent
-        drawerOpen={drawerOpen}
-        projectId={headerProjectId}
-        onCloseDrawer={() => setDrawerOpen(false)}
-      >
-        {children}
-      </AppContent>
-
-      <MissingSeoSetupModal
-        ref={setupModalRef}
-        isOpen={shouldShowMissingSeoApiKeyModal}
-        onClose={() => setShowMissingSeoApiKeyModal(false)}
-      />
-
-      <GscReEngagementModal
-        projectId={headerProjectId}
-        suppressed={shouldShowMissingSeoApiKeyModal}
-      />
-    </div>
+      {ready ? (
+        <GscReEngagementModal
+          projectId={sidebarProjectId}
+          suppressed={showMissingSeoApiKeyModal}
+        />
+      ) : null}
+    </SidebarProvider>
   );
 }
 
-function TopNav({
-  drawerOpen,
-  projectId,
-  pathname,
-  onOpenDrawer,
-}: {
-  drawerOpen: boolean;
-  projectId: string | null;
-  pathname: string;
-  onOpenDrawer: () => void;
-}) {
-  const navGroups = projectId ? getProjectNavGroups(projectId) : [];
-  const isSupportActive = pathname === SUPPORT_PATH;
-
+function MobileTopBar() {
   return (
-    <div className="navbar shrink-0 gap-2 border-b border-base-300 bg-base-100">
-      <div className="flex flex-none items-center md:hidden">
-        {projectId ? (
-          <button
-            type="button"
-            className="btn btn-square btn-ghost"
-            aria-label="Toggle sidebar"
-            aria-expanded={drawerOpen}
-            onClick={onOpenDrawer}
-          >
-            <Menu className="h-6 w-6" />
-          </button>
-        ) : null}
-        <Link to="/" className="ml-1 font-semibold text-base-content">
-          OpenSEO
-        </Link>
-      </div>
-
-      <div className="hidden items-center gap-1 md:flex">
-        <Link to="/" className="px-2 text-lg font-semibold text-base-content">
-          OpenSEO
-        </Link>
-        {projectId
-          ? navGroups.map((entry) => {
-              if (entry.type === "standalone") {
-                const { icon: Icon, matchSegment, ...linkProps } = entry.item;
-                const isActive = pathname.includes(matchSegment);
-                return (
-                  <Link
-                    key={linkProps.to}
-                    {...linkProps}
-                    className={`btn btn-sm gap-2 ${
-                      isActive
-                        ? "border-transparent bg-primary/10 font-medium text-primary"
-                        : "btn-ghost text-base-content/60 hover:text-base-content"
-                    }`}
-                  >
-                    <Icon className="h-4 w-4" />
-                    {entry.item.label}
-                  </Link>
-                );
-              }
-
-              const GroupIcon = entry.icon;
-              const isGroupActive = entry.matchSegments.some((seg) =>
-                pathname.includes(seg),
-              );
-
-              return (
-                <div key={entry.label} className="dropdown dropdown-hover">
-                  <button
-                    type="button"
-                    tabIndex={0}
-                    className={`btn btn-sm gap-1.5 ${
-                      isGroupActive
-                        ? "border-transparent bg-primary/10 font-medium text-primary"
-                        : "btn-ghost text-base-content/60 hover:text-base-content"
-                    }`}
-                  >
-                    <GroupIcon className="h-4 w-4" />
-                    {entry.label}
-                    <ChevronDown className="h-3 w-3 opacity-50" />
-                  </button>
-                  <ul
-                    tabIndex={0}
-                    className="dropdown-content z-20 menu w-52 rounded-box border border-base-300 bg-base-100 p-2 shadow-lg"
-                  >
-                    {entry.items.map((item) => {
-                      const { icon: Icon, matchSegment, ...linkProps } = item;
-                      const isActive = pathname.includes(matchSegment);
-                      return (
-                        <li key={linkProps.to}>
-                          <Link
-                            {...linkProps}
-                            className={
-                              isActive
-                                ? "bg-primary/10 font-medium text-primary"
-                                : ""
-                            }
-                            onClick={() => {
-                              if (
-                                document.activeElement instanceof HTMLElement
-                              ) {
-                                document.activeElement.blur();
-                              }
-                            }}
-                          >
-                            <Icon className="h-4 w-4" />
-                            {item.label}
-                          </Link>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                </div>
-              );
-            })
-          : null}
-      </div>
-
-      <div className="flex-1" />
-
-      <div className="hidden flex-none items-center gap-2 md:flex">
-        <div className="tooltip tooltip-bottom" data-tip="Help & Community">
-          <Link
-            to={SUPPORT_PATH}
-            className={`btn btn-ghost btn-circle btn-sm ${
-              isSupportActive
-                ? "bg-primary/10 text-primary"
-                : "text-base-content/60 hover:text-base-content"
-            }`}
-          >
-            <CircleHelp className="h-4 w-4" />
-          </Link>
-        </div>
-
-        <div className="flex items-center rounded-full border border-base-300 bg-base-100/70 px-1 py-1 shadow-sm">
-          <ProjectSwitcher activeProjectId={projectId} variant="topbar" />
-
-          <AccountMenu />
-        </div>
-      </div>
-
-      <AccountMenu mobileOnly />
+    <div className="flex shrink-0 items-center gap-1 border-b border-border bg-card px-2 py-1.5 md:hidden">
+      <SidebarTrigger aria-label="Toggle sidebar" />
+      <Link to="/" className="ml-1 font-semibold text-foreground">
+        OpenSEO
+      </Link>
     </div>
-  );
-}
-
-function AccountMenu({ mobileOnly = false }: { mobileOnly?: boolean }) {
-  const { data: session } = useSession();
-  const isHostedMode = isHostedClientAuthMode();
-  const email = session?.user?.email;
-
-  const handleSignOut = () => signOutAndRedirect();
-
-  const menu = (
-    <div className={mobileOnly ? "ml-2 flex-none md:hidden" : "flex-none"}>
-      <div className="dropdown dropdown-end">
-        <button
-          type="button"
-          tabIndex={0}
-          className={`btn btn-ghost btn-circle ${mobileOnly ? "" : "hover:bg-base-200/80"}`}
-          aria-label="Open account menu"
-        >
-          <User className="h-5 w-5" />
-        </button>
-        <ul
-          tabIndex={0}
-          className="dropdown-content z-20 menu mt-3 min-w-56 rounded-box border border-base-300 bg-base-100 p-2 shadow-lg"
-        >
-          {email ? (
-            <li className="menu-title max-w-full">
-              <span className="truncate text-base-content" data-ph-mask>
-                {email}
-              </span>
-            </li>
-          ) : null}
-          {mobileOnly ? (
-            <li>
-              <Link to={SUPPORT_PATH} className="flex items-center gap-2">
-                <CircleHelp className="h-4 w-4" />
-                Help & Community
-              </Link>
-            </li>
-          ) : null}
-          {isHostedMode ? (
-            <li>
-              <Link to={BILLING_ROUTE} className="flex items-center gap-2">
-                <CreditCard className="h-4 w-4" />
-                Billing
-              </Link>
-            </li>
-          ) : null}
-          <li>
-            <Link to="/settings" className="flex items-center gap-2">
-              <Settings className="h-4 w-4" />
-              Settings
-            </Link>
-          </li>
-          {isHostedMode && email ? (
-            <li>
-              <button
-                type="button"
-                className="text-error"
-                onClick={handleSignOut}
-              >
-                Sign out
-              </button>
-            </li>
-          ) : null}
-        </ul>
-      </div>
-    </div>
-  );
-
-  if (mobileOnly) {
-    return menu;
-  }
-
-  return (
-    <>
-      <div className="mx-1 h-6 w-px bg-base-300" />
-      {menu}
-    </>
   );
 }

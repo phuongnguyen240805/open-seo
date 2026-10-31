@@ -1,43 +1,50 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Copy, Download, FileSpreadsheet, Save, Sheet } from "lucide-react";
-import { toast } from "sonner";
+import { Download, Save, Sheet } from "lucide-react";
 import {
   TableBulkActionBar,
   TableBulkActionButton,
   TableBulkExportMenu,
 } from "@/client/components/table/TableBulkActionBar";
-import { DomainKeywordsPagination } from "@/client/features/domain/components/DomainKeywordsPagination";
+import { QueryError } from "@/client/components/QueryState";
+import { TablePagination } from "@/client/components/table/TablePagination";
+import { DomainPageLink } from "@/client/features/domain/components/DomainPageLink";
 import { DomainKeywordsTable } from "@/client/features/domain/components/DomainKeywordsTable";
 import { DomainFilterPanel } from "@/client/features/domain/components/DomainFilterPanel";
-import { DomainTableTabSurface } from "@/client/features/domain/components/DomainTableTabSurface";
+import { DomainTableToolbar } from "@/client/features/domain/components/DomainTableToolbar";
 import { saveSelectedKeywords } from "@/client/features/domain/domainActions";
 import {
   KEYWORD_FILTER_FIELDS,
   buildKeywordsSearchUpdate,
   countKeywordFilterConditions,
 } from "@/client/features/domain/domainFilterUtils";
-import {
-  debugDomain,
-  useDomainRenderDebug,
-} from "@/client/features/domain/domainDebug";
 import { useDomainKeywordsQuery } from "@/client/features/domain/hooks/useDomainKeywordsQuery";
 import { useSaveKeywordsMutation } from "@/client/features/domain/mutations";
 import { useDomainKeywordFilterPreferences } from "@/client/features/domain/useDomainFilterPreferences";
 import {
+  EMPTY_DOMAIN_FILTERS,
   type DomainSortMode,
   type KeywordRow,
   type KeywordsFilterValues,
 } from "@/client/features/domain/types";
 import { keywordsToTable } from "@/client/features/domain/utils";
 import type { DomainOverviewRouteState } from "@/client/features/domain/domainRouteState";
-import { buildCsv, downloadCsv } from "@/client/lib/csv";
-import { exportTableToSheets } from "@/client/lib/exportToSheets";
-import { captureClientEvent } from "@/client/lib/posthog";
+import { exportRows, type ExportFormat } from "@/client/lib/exportRows";
 import {
+  DOMAIN_KEYWORDS_PAGE_SIZES,
   MAX_DATAFORSEO_FILTER_CONDITIONS,
   type DomainSearchParams,
 } from "@/types/schemas/domain";
+import {
+  RESEARCH_SCOPE_FILTER_SLOTS,
+  type ResearchScope,
+} from "@/shared/researchScope";
 
 type SearchUpdate = Partial<DomainSearchParams>;
 
@@ -64,9 +71,14 @@ const KEYWORD_RANGE_FILTERS = [
 
 type Props = {
   projectId: string;
-  domain: string;
-  languageCode: string;
+  /** Research target as displayed: hostname, plus the path for URL scopes. */
+  target: string;
+  /** Hostname only, for resolving relative result URLs. */
+  hostname: string;
+  scope: ResearchScope;
   routeState: DomainOverviewRouteState;
+  /** The Top Keywords / Top Pages tabs, shown at the top of the table card. */
+  tabs: ReactNode;
   canSaveKeywords: boolean;
   setSearchParams: (updates: SearchUpdate) => void;
   onSortClick: (sort: DomainSortMode) => void;
@@ -76,9 +88,11 @@ type Props = {
 
 export function KeywordsTab({
   projectId,
-  domain,
-  languageCode,
+  target,
+  hostname,
+  scope,
   routeState,
+  tabs,
   canSaveKeywords,
   setSearchParams,
   onSortClick,
@@ -90,49 +104,47 @@ export function KeywordsTab({
     new Set(),
   );
   const [showFilters, setShowFilters] = useState(false);
+  // Scope filters consume part of DataForSEO's fixed filter budget.
+  const maxConditions =
+    MAX_DATAFORSEO_FILTER_CONDITIONS -
+    RESEARCH_SCOPE_FILTER_SLOTS.keywords[scope];
   const filterPreferences = useDomainKeywordFilterPreferences(
-    `${projectId}:${domain}`,
+    `${projectId}:${target}`,
   );
   const {
     filters: preferredFilters,
     save: savePreferredFilters,
     clear: clearPreferredFilters,
   } = filterPreferences;
-  const appliedFilters = routeState.hasAppliedKeywordFilters
+  const restoredFilters = routeState.hasAppliedKeywordFilters
     ? routeState.appliedFilters
     : preferredFilters;
+  // Filters restored from the URL or saved preferences can exceed this
+  // scope's tighter budget; sending them would make the server reject the
+  // whole query, so hold them back and let the panel explain.
+  const filtersOverBudget =
+    countKeywordFilterConditions(restoredFilters) > maxConditions;
+  const appliedFilters = filtersOverBudget
+    ? EMPTY_DOMAIN_FILTERS
+    : restoredFilters;
 
   const query = useDomainKeywordsQuery({
     projectId,
-    domain,
-    includeSubdomains: routeState.subdomains,
-    locationCode: routeState.locationCode,
-    languageCode,
+    domain: target,
+    scope,
+    locationCode: routeState.sentLocationCode,
     page: routeState.page,
     pageSize: routeState.pageSize,
     sortMode: routeState.sort,
     sortOrder: routeState.order,
     appliedFilters,
-    enabled: Boolean(domain),
+    enabled: Boolean(target),
   });
 
   const rows = query.data?.keywords ?? EMPTY_KEYWORDS;
   const totalCount = query.data?.totalCount ?? null;
   const hasNextPage = query.data?.hasMore ?? false;
-  const isLoading = query.isFetching;
-  const showTableLoading = isLoading && (showFilters || rows.length === 0);
-  useDomainRenderDebug("KeywordsTab", {
-    showFilters,
-    isLoading,
-    isPending: query.isPending,
-    rows: rows.length,
-    totalCount,
-    selectedCount: selectedKeywords.size,
-    activeTab: routeState.tab,
-    page: routeState.page,
-    sort: routeState.sort,
-    order: routeState.order,
-  });
+  const isFetching = query.isFetching;
 
   const visibleKeywords = useMemo(() => rows.map((r) => r.keyword), [rows]);
   useEffect(() => {
@@ -159,13 +171,11 @@ export function KeywordsTab({
       filteredKeywords: rows,
       save: saveMutation.mutate,
       projectId,
-      locationCode: routeState.locationCode,
-      languageCode,
+      locationCode: routeState.sentLocationCode,
     });
   }, [
-    languageCode,
     projectId,
-    routeState.locationCode,
+    routeState.sentLocationCode,
     rows,
     saveMutation.mutate,
     selectedKeywords,
@@ -173,80 +183,50 @@ export function KeywordsTab({
 
   const applyFilters = useCallback(
     (values: KeywordsFilterValues) => {
-      if (
-        countKeywordFilterConditions(values) > MAX_DATAFORSEO_FILTER_CONDITIONS
-      )
-        return;
-      const update = buildKeywordsSearchUpdate(values);
-      debugDomain("KeywordsTab:apply-filters", { values, update });
+      if (countKeywordFilterConditions(values) > maxConditions) return;
       savePreferredFilters(values);
-      setSearchParams(update);
+      setSearchParams(buildKeywordsSearchUpdate(values));
     },
-    [savePreferredFilters, setSearchParams],
+    [maxConditions, savePreferredFilters, setSearchParams],
   );
 
   const resetFilters = useCallback(() => {
     const update: SearchUpdate = { page: undefined };
     for (const key of KEYWORD_FILTER_FIELDS) update[key] = undefined;
-    debugDomain("KeywordsTab:reset-filters", { update });
     clearPreferredFilters();
     setSearchParams(update);
   }, [clearPreferredFilters, setSearchParams]);
 
   const activeFilterCount = useMemo(
     () =>
-      KEYWORD_FILTER_FIELDS.filter((k) => appliedFilters[k].trim() !== "")
+      KEYWORD_FILTER_FIELDS.filter((k) => restoredFilters[k].trim() !== "")
         .length,
-    [appliedFilters],
+    [restoredFilters],
   );
 
   const exportTable = useMemo(() => keywordsToTable(rows), [rows]);
+  const fileNamePrefix = target.replaceAll("/", "-");
   const selectedExportTable = useMemo(
     () => keywordsToTable(rows.filter((r) => selectedKeywords.has(r.keyword))),
     [rows, selectedKeywords],
   );
 
-  const handleCopy = async () => {
-    await navigator.clipboard.writeText(JSON.stringify(rows, null, 2));
-    toast.success("Copied data");
-  };
-  const handleExportToSheets = () => {
-    void exportTableToSheets({
-      headers: exportTable.headers,
-      rows: exportTable.rows,
+  const exportAll = (format: ExportFormat) =>
+    void exportRows({
+      format,
       feature: "domain_overview",
+      ...exportTable,
+      filename: `${fileNamePrefix}-keywords`,
+      records: rows,
     });
-  };
-  const handleDownload = (extension: "csv" | "xls") => {
-    downloadCsv(
-      `${domain}-keywords.${extension}`,
-      buildCsv(exportTable.headers, exportTable.rows),
-    );
-    if (extension === "csv") {
-      captureClientEvent("data:export", {
-        source_feature: "domain_overview",
-        result_count: rows.length,
-      });
-    }
-  };
-  const handleExportSelectionToSheets = () => {
-    void exportTableToSheets({
-      headers: selectedExportTable.headers,
-      rows: selectedExportTable.rows,
+  const exportSelection = (format: ExportFormat) =>
+    void exportRows({
+      format,
       feature: "domain_overview",
-    });
-  };
-  const handleDownloadSelectionCsv = () => {
-    downloadCsv(
-      `${domain}-selected-keywords.csv`,
-      buildCsv(selectedExportTable.headers, selectedExportTable.rows),
-    );
-    captureClientEvent("data:export", {
-      source_feature: "domain_overview",
-      result_count: selectedKeywords.size,
+      ...selectedExportTable,
+      filename: `${fileNamePrefix}-selected-keywords`,
       scope: "selection",
     });
-  };
 
   return (
     <>
@@ -267,12 +247,12 @@ export function KeywordsTab({
                 {
                   label: "Export to Sheets",
                   icon: <Sheet className="size-4" />,
-                  onClick: handleExportSelectionToSheets,
+                  onClick: () => exportSelection("sheets"),
                 },
                 {
                   label: "Download CSV",
                   icon: <Download className="size-4" />,
-                  onClick: handleDownloadSelectionCsv,
+                  onClick: () => exportSelection("csv"),
                 },
               ]}
             />
@@ -280,75 +260,77 @@ export function KeywordsTab({
         }
       />
 
-      <DomainTableTabSurface
-        showFilters={showFilters}
-        onToggleFilters={() => setShowFilters((prev) => !prev)}
-        activeFilterCount={activeFilterCount}
-        countLabel="keywords"
-        totalCount={totalCount}
-        fallbackCount={rows.length}
-        isLoading={isLoading}
-        showTableLoading={showTableLoading}
-        exportActions={[
-          {
-            label: "Export to Sheets",
-            icon: <Sheet className="size-4" />,
-            onClick: handleExportToSheets,
-          },
-          {
-            label: "Copy data (JSON)",
-            icon: <Copy className="size-4" />,
-            onClick: handleCopy,
-          },
-          {
-            label: "Download CSV",
-            icon: <Download className="size-4" />,
-            onClick: () => handleDownload("csv"),
-          },
-          {
-            label: "Download Excel",
-            icon: <FileSpreadsheet className="size-4" />,
-            onClick: () => handleDownload("xls"),
-          },
-        ]}
-        filterPanel={
-          showFilters ? (
-            <DomainFilterPanel
-              debugName="KeywordsFilterPanel"
-              activeFilterCount={activeFilterCount}
-              appliedFilters={appliedFilters}
-              fields={KEYWORD_FILTER_FIELDS}
-              textFields={KEYWORD_TEXT_FILTERS}
-              rangeFields={KEYWORD_RANGE_FILTERS}
-              countConditions={countKeywordFilterConditions}
-              onApply={applyFilters}
-              onClear={resetFilters}
+      <DomainKeywordsTable
+        domain={hostname}
+        rows={rows}
+        selectedKeywords={selectedKeywords}
+        visibleKeywords={visibleKeywords}
+        sortMode={routeState.sort}
+        currentSortOrder={routeState.order}
+        onSortClick={onSortClick}
+        onToggleKeyword={toggleKeywordSelection}
+        isLoading={isFetching && (showFilters || rows.length === 0)}
+        isFiltered={!filtersOverBudget && activeFilterCount > 0}
+        onClearFilters={resetFilters}
+        error={
+          query.isError ? (
+            <QueryError
+              error={query.error}
+              fallback="Failed to load keywords."
+              onRetry={() => void query.refetch()}
+              isRetrying={isFetching}
             />
           ) : null
         }
-        pagination={
-          <DomainKeywordsPagination
+        toolbar={
+          <>
+            {tabs}
+            <DomainTableToolbar
+              overBudgetLimit={filtersOverBudget ? maxConditions : null}
+              showFilters={showFilters}
+              onToggleFilters={() => setShowFilters((prev) => !prev)}
+              activeFilterCount={activeFilterCount}
+              countLabel="keywords"
+              totalCount={totalCount}
+              fallbackCount={rows.length}
+              onExport={exportAll}
+              filterPanel={
+                <DomainFilterPanel
+                  activeFilterCount={activeFilterCount}
+                  appliedFilters={restoredFilters}
+                  fields={KEYWORD_FILTER_FIELDS}
+                  textFields={KEYWORD_TEXT_FILTERS}
+                  rangeFields={KEYWORD_RANGE_FILTERS}
+                  countConditions={countKeywordFilterConditions}
+                  maxConditions={maxConditions}
+                  onApply={applyFilters}
+                  onClear={resetFilters}
+                />
+              }
+            >
+              <span className="text-sm text-muted-foreground">
+                ·{" "}
+                {selectedKeywords.size > 0
+                  ? `${selectedKeywords.size} selected`
+                  : "Select keywords to save"}
+              </span>
+            </DomainTableToolbar>
+          </>
+        }
+        footer={
+          <TablePagination
             page={routeState.page}
             pageSize={routeState.pageSize}
+            pageSizes={DOMAIN_KEYWORDS_PAGE_SIZES}
             totalCount={totalCount}
             hasNextPage={hasNextPage}
-            isLoading={isLoading}
+            isLoading={isFetching}
             onPageChange={onPageChange}
             onPageSizeChange={onPageSizeChange}
+            renderPageButton={DomainPageLink}
           />
         }
-      >
-        <DomainKeywordsTable
-          domain={domain}
-          rows={rows}
-          selectedKeywords={selectedKeywords}
-          visibleKeywords={visibleKeywords}
-          sortMode={routeState.sort}
-          currentSortOrder={routeState.order}
-          onSortClick={onSortClick}
-          onToggleKeyword={toggleKeywordSelection}
-        />
-      </DomainTableTabSurface>
+      />
     </>
   );
 }

@@ -32,7 +32,9 @@ export const GSC_DATE_RANGES = [
   "last_16_months",
 ] as const;
 
-export const GSC_DEFAULT_ROW_LIMIT = 1000;
+// 250 rows fits comfortably inside one MCP tool result; the agent opts into
+// more with `rowLimit` or paginates with `startRow`.
+export const GSC_DEFAULT_ROW_LIMIT = 250;
 // v1 caps rows-per-call at 1000 to protect the MCP context window. The GSC API
 // supports up to 25000, but we keep fetched == returned so counts stay honest;
 // the agent paginates with `startRow` for more.
@@ -72,35 +74,43 @@ function formatDate(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
 
+// Subtract calendar months in UTC, clamping the day to the target month's length.
+function subtractUtcMonths(date: Date, months: number): Date {
+  const day = date.getUTCDate();
+  const d = new Date(date);
+  d.setUTCDate(1);
+  d.setUTCMonth(d.getUTCMonth() - months);
+  const daysInTargetMonth = new Date(
+    Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0),
+  ).getUTCDate();
+  d.setUTCDate(Math.min(day, daysInTargetMonth));
+  return d;
+}
+
+// GSC treats both startDate and endDate as inclusive, so an N-day window starts N-1 days before the end.
 function subtractRange(end: Date, range: GscDateRange): Date {
   const d = new Date(end);
   switch (range) {
     case "last_7_days":
-      d.setUTCDate(d.getUTCDate() - 7);
+      d.setUTCDate(d.getUTCDate() - 6);
       break;
     case "last_28_days":
-      d.setUTCDate(d.getUTCDate() - 28);
+      d.setUTCDate(d.getUTCDate() - 27);
       break;
     case "last_3_months":
-      d.setUTCMonth(d.getUTCMonth() - 3);
-      break;
+      return subtractUtcMonths(d, 3);
     case "last_6_months":
-      d.setUTCMonth(d.getUTCMonth() - 6);
-      break;
+      return subtractUtcMonths(d, 6);
     case "last_12_months":
-      d.setUTCMonth(d.getUTCMonth() - 12);
-      break;
+      return subtractUtcMonths(d, 12);
     case "last_16_months":
-      d.setUTCMonth(d.getUTCMonth() - 16);
-      break;
+      return subtractUtcMonths(d, 16);
   }
   return d;
 }
 
 function sixteenMonthFloor(today: Date): string {
-  const d = new Date(today);
-  d.setUTCMonth(d.getUTCMonth() - 16);
-  return formatDate(d);
+  return formatDate(subtractUtcMonths(today, 16));
 }
 
 /** Resolve a convenience `dateRange` or explicit start/end into GSC dates.

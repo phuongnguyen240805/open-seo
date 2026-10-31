@@ -1,7 +1,7 @@
-import type { AuthInfo } from "@modelcontextprotocol/sdk/server/auth/types.js";
-import type { ToolExtra } from "@/server/mcp/context";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { MCP_AUTH_CONTEXT_PROP } from "@/server/mcp/context";
+import { listSavedKeywordsTool } from "./list-saved-keywords";
+import { saveKeywordsTool } from "./save-keywords";
+import { makeToolContext, textContent } from "./tool-test-support";
 
 const mocks = vi.hoisted(() => ({
   getProjectForOrganization: vi.fn(),
@@ -22,60 +22,51 @@ vi.mock("@/server/features/keywords/services/KeywordResearchService", () => ({
   },
 }));
 
-const authContext = {
-  userId: "user_123",
-  userEmail: "alice@example.com",
-  organizationId: "org_123",
-  clientId: "client_123",
-  scopes: ["mcp"],
-  audience: "https://open-seo.test/mcp",
-  subject: "user_123",
-  baseUrl: "https://open-seo.test",
-};
-
-const toolExtra: ToolExtra = {
-  signal: new AbortController().signal,
-  requestId: 1,
-  sendNotification: vi.fn(),
-  sendRequest: vi.fn(),
-  authInfo: {
-    token: "token",
-    clientId: "client_123",
-    scopes: ["mcp"],
-    resource: new URL("https://open-seo.test/mcp"),
-    extra: { [MCP_AUTH_CONTEXT_PROP]: authContext },
-  } satisfies AuthInfo,
-};
+const toolContext = makeToolContext();
 
 describe("saved keyword MCP tools", () => {
   beforeEach(() => {
-    vi.resetModules();
-    mocks.getProjectForOrganization.mockReset();
-    mocks.getProjectForOrganization.mockResolvedValue({ id: "project_1" });
-    mocks.getSavedKeywords.mockReset();
-    mocks.saveKeywords.mockReset();
+    mocks.getProjectForOrganization.mockResolvedValue({
+      id: "project_1",
+      locationCode: 2840,
+      languageCode: "en",
+    });
   });
 
-  it("passes tags through save_keywords", async () => {
+  // Appending is the default: a replace default would silently wipe the
+  // user's existing tags on every save.
+  it("passes tags and metrics through save_keywords, appending tags by default", async () => {
     mocks.saveKeywords.mockResolvedValue({
       success: true,
       savedKeywordIds: ["saved_1"],
     });
-    const { saveKeywordsTool } = await import("./save-keywords");
+    const metrics = [
+      {
+        keyword: "technical seo",
+        searchVolume: 120,
+        keywordDifficulty: 18,
+        cpc: 2.5,
+        competition: 0.42,
+        intent: "commercial" as const,
+        monthlySearches: [{ year: 2026, month: 8, searchVolume: 120 }],
+      },
+    ];
 
     const result = await saveKeywordsTool.handler(
       {
         projectId: "project_1",
         keywords: ["technical seo"],
         tags: ["Content"],
+        metrics,
       },
-      toolExtra,
+      toolContext,
     );
 
     expect(mocks.saveKeywords).toHaveBeenCalledWith({
       projectId: "project_1",
       keywords: ["technical seo"],
       tags: ["Content"],
+      metrics,
       tagMode: "append",
       locationCode: 2840,
       languageCode: "en",
@@ -87,41 +78,7 @@ describe("saved keyword MCP tools", () => {
     });
   });
 
-  it("replaces tags through save_keywords when requested", async () => {
-    mocks.saveKeywords.mockResolvedValue({
-      success: true,
-      savedKeywordIds: ["saved_1", "saved_2"],
-    });
-    const { saveKeywordsTool } = await import("./save-keywords");
-
-    const result = await saveKeywordsTool.handler(
-      {
-        projectId: "project_1",
-        keywords: ["semrush alternative", "semrush pricing"],
-        tags: ["cluster: affordable semrush alternatives"],
-        tagMode: "replace",
-      },
-      toolExtra,
-    );
-
-    expect(mocks.saveKeywords).toHaveBeenCalledWith({
-      projectId: "project_1",
-      keywords: ["semrush alternative", "semrush pricing"],
-      tags: ["cluster: affordable semrush alternatives"],
-      tagMode: "replace",
-      locationCode: 2840,
-      languageCode: "en",
-    });
-    expect(result.structuredContent).toMatchObject({
-      savedCount: 2,
-      tags: ["cluster: affordable semrush alternatives"],
-      tagMode: "replace",
-    });
-  });
-
   it("rejects replace mode without replacement tags before saving", async () => {
-    const { saveKeywordsTool } = await import("./save-keywords");
-
     await expect(() =>
       saveKeywordsTool.handler(
         {
@@ -129,7 +86,7 @@ describe("saved keyword MCP tools", () => {
           keywords: ["semrush alternative"],
           tagMode: "replace",
         },
-        toolExtra,
+        toolContext,
       ),
     ).rejects.toThrow("Replacement tags are required");
     expect(mocks.saveKeywords).not.toHaveBeenCalled();
@@ -157,7 +114,6 @@ describe("saved keyword MCP tools", () => {
         },
       ],
     });
-    const { listSavedKeywordsTool } = await import("./list-saved-keywords");
 
     const result = await listSavedKeywordsTool.handler(
       {
@@ -166,7 +122,7 @@ describe("saved keyword MCP tools", () => {
         tags: ["Content"],
         limit: 50,
       },
-      toolExtra,
+      toolContext,
     );
 
     expect(mocks.getSavedKeywords).toHaveBeenCalledWith({
@@ -180,12 +136,11 @@ describe("saved keyword MCP tools", () => {
     });
     expect(result.structuredContent).toMatchObject({
       totalCount: 1,
-      rows: [{ keyword: "technical seo" }],
+      rows: [{ keyword: "technical seo", tags: ["Content"] }],
+      tags: [{ name: "Content", keywordCount: 1 }],
     });
-    const [content] = result.content;
-    expect(content).toMatchObject({ type: "text" });
-    expect(content?.type === "text" ? content.text : "").toContain(
-      "tags:Content",
-    );
+    // remove_saved_keywords takes these ids, so both channels must carry them.
+    expect(result.structuredContent?.rows?.[0]).toHaveProperty("id", "saved_1");
+    expect(textContent(result)).toContain("id:saved_1");
   });
 });

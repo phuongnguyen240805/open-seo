@@ -1,10 +1,9 @@
-import { useEffect, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMemo } from "react";
+import { useQuery, type QueryKey } from "@tanstack/react-query";
 import type {
   BacklinksPageProps,
   BacklinksSearchState,
 } from "./backlinksPageTypes";
-import { useAccessGate } from "@/client/features/access-gate/useAccessGate";
 import {
   getErrorCode,
   getStandardErrorMessage,
@@ -15,7 +14,6 @@ import {
   getBacklinksRows,
   getBacklinksTopPages,
 } from "@/serverFunctions/backlinks";
-import { getBacklinksAccessSetupStatus } from "@/serverFunctions/backlinksAccess";
 import {
   BACKLINKS_DEFAULT_SORT,
   backlinksRowsSortFieldSchema,
@@ -25,11 +23,12 @@ import {
 } from "@/types/schemas/backlinks";
 import {
   toBacklinksFiltersPayload,
+  backlinksFilterBudgetError,
   toReferringDomainsFiltersPayload,
   toTopPagesFiltersPayload,
 } from "./backlinksFilterTypes";
 import type { BacklinksFiltersState } from "./useBacklinksFilters";
-import { getPersistedBacklinksSearchScope } from "./backlinksSearchScope";
+import { toScopeSearchParam } from "@/shared/researchScope";
 
 type UseBacklinksPageDataArgs = {
   projectId: string;
@@ -76,13 +75,6 @@ export function useBacklinksPageData({
   searchState,
   filters,
 }: UseBacklinksPageDataArgs) {
-  const accessGate = useAccessGate({
-    queryKey: ["backlinksAccessStatus", projectId],
-    queryFn: () => getBacklinksAccessSetupStatus({ data: { projectId } }),
-    statusErrorFallback: "Could not load Backlinks setup status.",
-  });
-  const backlinksEnabled = accessGate.enabled;
-  const retryAccessGate = accessGate.onRetry;
   const searchCardInitialValues = useMemo(
     () => ({
       target: searchState.target,
@@ -93,9 +85,21 @@ export function useBacklinksPageData({
 
   const { target, scope, tab, page, pageSize, sort, order, view } = searchState;
   const rowsMode = view === "all" ? "as_is" : "one_per_domain";
-  const targetReady = backlinksEnabled && Boolean(target);
+  const targetReady = Boolean(target);
   const baseQueryKeyParts = [projectId, scope, target] as const;
   const pageInputBase = { projectId, target, scope, page, pageSize };
+  // Keep the current table on screen while paging, sorting or filtering the
+  // same target. A new target shows the loading state instead. Each tab has
+  // its own query, so switching tabs never shows another tab's rows.
+  const keepSameTarget = <T>(
+    previous: T | undefined,
+    previousQuery: { queryKey: QueryKey } | undefined,
+  ) =>
+    baseQueryKeyParts.every(
+      (part, index) => previousQuery?.queryKey[index + 1] === part,
+    )
+      ? previous
+      : undefined;
 
   const overviewQuery = useQuery({
     queryKey: ["backlinksOverview", ...baseQueryKeyParts],
@@ -114,6 +118,11 @@ export function useBacklinksPageData({
     () => toBacklinksFiltersPayload(filters.backlinks.values),
     [filters.backlinks.values],
   );
+  const rowsFilterError = backlinksFilterBudgetError(
+    filters.backlinks.values,
+    scope,
+    !searchState.includeSpam,
+  );
   const rowsQuery = useQuery({
     queryKey: [
       "backlinksRows",
@@ -124,9 +133,13 @@ export function useBacklinksPageData({
       rowsSort.order,
       rowsFilters,
       rowsMode,
+      searchState.includeSpam ?? false,
     ],
-    enabled: targetReady && tab === "backlinks",
+    enabled: targetReady && tab === "backlinks" && !rowsFilterError,
     staleTime: BACKLINKS_QUERY_STALE_TIME_MS,
+    // Over-budget filters never run the query, so no rows (and no export) may
+    // stand in for them.
+    placeholderData: rowsFilterError ? undefined : keepSameTarget,
     queryFn: () =>
       getBacklinksRows({
         data: {
@@ -135,6 +148,7 @@ export function useBacklinksPageData({
           sortOrder: rowsSort.order,
           filters: rowsFilters,
           mode: rowsMode,
+          hideSpam: !searchState.includeSpam,
         },
       }),
   });
@@ -161,6 +175,7 @@ export function useBacklinksPageData({
     ],
     enabled: targetReady && tab === "domains",
     staleTime: BACKLINKS_QUERY_STALE_TIME_MS,
+    placeholderData: keepSameTarget,
     queryFn: () =>
       getBacklinksReferringDomains({
         data: {
@@ -194,6 +209,7 @@ export function useBacklinksPageData({
     ],
     enabled: targetReady && tab === "pages",
     staleTime: BACKLINKS_QUERY_STALE_TIME_MS,
+    placeholderData: keepSameTarget,
     queryFn: () =>
       getBacklinksTopPages({
         data: {
@@ -209,40 +225,21 @@ export function useBacklinksPageData({
     overviewQuery.error,
     "Could not load backlinks data.",
   );
-  const backlinksDisabledByError =
-    getErrorCode(overviewQuery.error) === "BACKLINKS_NOT_ENABLED";
   const activeTabQuery =
     tab === "backlinks"
       ? rowsQuery
       : tab === "domains"
         ? referringDomainsQuery
         : topPagesQuery;
-  const activeTabErrorMessage = getBacklinksErrorMessage(
-    activeTabQuery.error,
-    "Could not load this tab.",
-  );
-  const backlinksDisabledByTabError =
-    getErrorCode(activeTabQuery.error) === "BACKLINKS_NOT_ENABLED";
-
-  useEffect(() => {
-    if (
-      (backlinksDisabledByError || backlinksDisabledByTabError) &&
-      backlinksEnabled
-    ) {
-      retryAccessGate();
-    }
-  }, [
-    backlinksDisabledByError,
-    backlinksDisabledByTabError,
-    backlinksEnabled,
-    retryAccessGate,
-  ]);
+  const activeTabFilterError = tab === "backlinks" ? rowsFilterError : null;
+  const activeTabErrorMessage =
+    activeTabFilterError ??
+    getBacklinksErrorMessage(activeTabQuery.error, "Could not load this tab.");
 
   return {
-    accessGate,
     activeTabErrorMessage,
+    activeTabFilterError,
     activeTabQuery,
-    backlinksDisabledByError,
     overviewErrorMessage,
     overviewQuery,
     referringDomainsQuery,
@@ -252,6 +249,8 @@ export function useBacklinksPageData({
   };
 }
 
+export type BacklinksPageData = ReturnType<typeof useBacklinksPageData>;
+
 export function navigateToBacklinksSearch(
   navigate: BacklinksPageProps["navigate"],
   values: Pick<BacklinksSearchState, "target" | "scope">,
@@ -260,7 +259,7 @@ export function navigateToBacklinksSearch(
     search: (prev) => ({
       ...prev,
       target: values.target,
-      scope: getPersistedBacklinksSearchScope(values.target, values.scope),
+      scope: toScopeSearchParam(values.target, values.scope),
       tab: undefined,
       page: undefined,
       sort: undefined,

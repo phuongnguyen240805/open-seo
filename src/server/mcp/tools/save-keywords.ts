@@ -4,13 +4,13 @@ import { mcpResponse } from "@/server/mcp/formatters";
 import { buildProjectMeta } from "@/server/mcp/context";
 import { optionalMetaOutputSchema } from "@/server/mcp/output-schemas";
 import { withMcpProjectAuth } from "@/server/mcp/project-auth";
+import { resolveMarket } from "@/shared/keyword-locations";
 import {
-  DEFAULT_LANGUAGE_CODE,
-  DEFAULT_LOCATION_CODE,
   languageCodeSchema,
   locationCodeSchema,
   projectIdSchema,
 } from "@/server/mcp/schemas";
+import { savedKeywordMetricSchema } from "@/types/schemas/keywords";
 
 const inputSchema = {
   projectId: projectIdSchema,
@@ -19,6 +19,13 @@ const inputSchema = {
     .min(1)
     .max(100)
     .describe("Keywords to save (1-100)."),
+  metrics: z
+    .array(savedKeywordMetricSchema)
+    .max(100)
+    .optional()
+    .describe(
+      "Optional metrics for the saved keywords. Copy keyword, searchVolume, keywordDifficulty, cpc, competition, and intent from research_keywords or get_keyword_metrics rows. monthlySearches is optional. Match each metric using its keyword field.",
+    ),
   tags: z
     .array(z.string().min(1).max(64))
     .max(20)
@@ -45,7 +52,7 @@ export const saveKeywordsTool = {
     description:
       "Save keywords to a project's saved-keywords list. Uses no credits — does not call DataForSEO. Idempotent: re-saving an existing keyword is a no-op. If tags are provided, missing tags may be created. By default tags are appended; set tagMode=replace to remove existing tags from these saved keywords before applying the provided tags, which is useful for reorganizing keywords into page/topic clusters. Ask the user for confirmation before applying or replacing tags broadly.",
     inputSchema,
-    outputSchema: {
+    outputSchema: z.looseObject({
       projectId: z.string(),
       savedCount: z.number(),
       keywords: z.array(z.string()),
@@ -54,11 +61,11 @@ export const saveKeywordsTool = {
       locationCode: z.number(),
       languageCode: z.string(),
       ...optionalMetaOutputSchema,
-    },
+    }),
     annotations: {
       readOnlyHint: false,
       openWorldHint: false,
-      destructiveHint: false,
+      destructiveHint: true,
     },
   },
   handler: withMcpProjectAuth(async (args: Args, context) => {
@@ -66,12 +73,12 @@ export const saveKeywordsTool = {
       throw new Error("Replacement tags are required when tagMode is replace.");
     }
 
-    const locationCode = args.locationCode ?? DEFAULT_LOCATION_CODE;
-    const languageCode = args.languageCode ?? DEFAULT_LANGUAGE_CODE;
+    const { locationCode, languageCode } = resolveMarket(args, context.project);
 
     await KeywordResearchService.saveKeywords({
       projectId: args.projectId,
       keywords: args.keywords,
+      metrics: args.metrics,
       tags: args.tags,
       tagMode: args.tagMode ?? "append",
       locationCode,

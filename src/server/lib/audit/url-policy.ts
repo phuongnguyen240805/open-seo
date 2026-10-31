@@ -1,4 +1,7 @@
 import { AppError } from "@/server/lib/errors";
+import { publicFetch } from "@/server/lib/public-fetch";
+import type { CrawlerAccess } from "@/shared/crawler-access";
+import { auditRequestHeaders } from "@/server/lib/audit/web-bot-auth";
 
 const BLOCKED_HOSTS = new Set([
   "localhost",
@@ -186,6 +189,40 @@ async function hostnameResolvesToBlockedAddress(
   }
 }
 
+/**
+ * Shopify storefronts, custom domains included, resolve into Shopify's
+ * 23.227.38.0/24. This identifies a store even when its edge answers with a
+ * bare 429 that carries no `powered-by` header.
+ */
+export async function isShopifyHost(hostname: string): Promise<boolean> {
+  try {
+    const addresses = await resolveAddressRecords(normalizeHost(hostname), "A");
+    return addresses.some((address) => address.startsWith("23.227.38."));
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Synchronous SSRF check for URLs discovered mid-crawl (links, redirect
+ * targets, sitemap entries). Blocks non-http(s) schemes, private/loopback IP
+ * literals, and internal hostnames. DNS resolution is only performed for the
+ * start URL (see normalizeAndValidateStartUrl); per-link DoH lookups would be
+ * prohibitively slow.
+ */
+export function isCrawlableUrl(url: string): boolean {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return false;
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    return false;
+  }
+  return !isBlockedHost(parsed.hostname);
+}
+
 export async function normalizeAndValidateStartUrl(
   input: string,
 ): Promise<string> {
@@ -217,4 +254,57 @@ export async function normalizeAndValidateStartUrl(
 
   parsed.hash = "";
   return parsed.toString();
+}
+
+const START_URL_REDIRECT_HOPS = 5;
+const START_URL_PROBE_TIMEOUT_MS = 10_000;
+
+/**
+ * Follow redirects on the audit's start URL so the audit anchors to the
+ * site's real origin. Without this, auditing a domain that 301s elsewhere
+ * (…net -> …com, apex -> www) dead-ends after one page: the redirect target
+ * is a different origin, so the same-origin crawl policy can't follow it.
+ *
+ * Every hop re-runs the full start-URL validation (SSRF, blocked hosts), so
+ * a redirect can't smuggle the audit somewhere the user couldn't have
+ * pointed it directly. Probe failures (timeouts, HEAD rejected) fall back
+ * to the last validated URL — the crawl records the real fetch result.
+ *
+ * Also reports the final response's `powered-by` header, which is how a
+ * Shopify storefront identifies itself.
+ */
+export async function resolveStartUrlRedirects(
+  startUrl: string,
+  access?: CrawlerAccess | null,
+): Promise<{ url: string; poweredBy: string | null }> {
+  let current = startUrl;
+  for (let hop = 0; hop < START_URL_REDIRECT_HOPS; hop++) {
+    let response: Response;
+    try {
+      response = await publicFetch(current, {
+        method: "HEAD",
+        redirect: "manual",
+        headers: await auditRequestHeaders(current, access),
+        signal: AbortSignal.timeout(START_URL_PROBE_TIMEOUT_MS),
+      });
+    } catch {
+      return { url: current, poweredBy: null };
+    }
+    if (response.status < 300 || response.status >= 400) {
+      return { url: current, poweredBy: response.headers.get("powered-by") };
+    }
+    const location = response.headers.get("location");
+    if (!location) {
+      return { url: current, poweredBy: response.headers.get("powered-by") };
+    }
+
+    let next: URL;
+    try {
+      next = new URL(location, current);
+    } catch {
+      return { url: current, poweredBy: null };
+    }
+    current = await normalizeAndValidateStartUrl(next.toString());
+  }
+  return { url: current, poweredBy: null };
 }

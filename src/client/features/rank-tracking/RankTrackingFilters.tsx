@@ -1,111 +1,83 @@
+import { useId } from "react";
 import { RotateCcw } from "lucide-react";
-import { LOCATIONS } from "@/client/features/keywords/locations";
-import { devicesLabel } from "@/shared/rank-tracking";
-import type {
-  RankTrackingConfig,
-  RankTrackingRow,
-} from "@/types/schemas/rank-tracking";
+import { Badge } from "@/client/components/ui/badge";
+import { Button } from "@/client/components/ui/button";
+import { Input } from "@/client/components/ui/input";
+import { Label } from "@/client/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/client/components/ui/select";
+import type { DomainListFilters, Filters } from "./RankTrackingFilters.logic";
 
-export type Filters = {
-  include: string;
-  exclude: string;
-  minDesktopPos: string;
-  maxDesktopPos: string;
-  minMobilePos: string;
-  maxMobilePos: string;
-};
-
-type DomainFilterableConfig = Pick<
-  RankTrackingConfig,
-  "domain" | "devices" | "locationCode"
->;
-
-export type DomainListFilters = {
-  query: string;
-  device: "all" | RankTrackingConfig["devices"];
-  locationCode: string;
-};
+export * from "./RankTrackingFilters.logic";
 
 type DomainListFilterOption = {
   value: string;
   label: string;
 };
 
-export const EMPTY_FILTERS: Filters = {
-  include: "",
-  exclude: "",
-  minDesktopPos: "",
-  maxDesktopPos: "",
-  minMobilePos: "",
-  maxMobilePos: "",
-};
+const FILTER_LABEL_CLASS =
+  "text-[11px] font-semibold uppercase tracking-wide text-muted-foreground";
 
-export const EMPTY_DOMAIN_LIST_FILTERS: DomainListFilters = {
-  query: "",
-  device: "all",
-  locationCode: "all",
-};
-
-const DEVICE_FILTER_ORDER: RankTrackingConfig["devices"][] = [
-  "both",
-  "desktop",
-  "mobile",
-];
-
+/** `draft` is the unapplied panel state; it reaches the URL after a pause. */
 export function FilterPanel({
-  filters,
-  setFilters,
+  draft,
+  setDraft,
   activeFilterCount,
   onReset,
 }: {
-  filters: Filters;
-  setFilters: (f: Filters) => void;
+  draft: Filters;
+  setDraft: (f: Filters) => void;
   activeFilterCount: number;
   onReset: () => void;
 }) {
+  const id = useId();
   const update = (key: keyof Filters, value: string) =>
-    setFilters({ ...filters, [key]: value });
+    setDraft({ ...draft, [key]: value });
 
   return (
-    <div className="shrink-0 border-b border-base-300 bg-gradient-to-b from-base-100 to-base-200/30 px-4 py-3 space-y-3">
+    <div className="shrink-0 space-y-3 border-b border-border bg-muted/40 px-4 py-3">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <p className="text-sm font-semibold">Refine results</p>
           {activeFilterCount > 0 && (
-            <span className="badge badge-xs badge-primary border-0 text-primary-content">
-              {activeFilterCount} active
-            </span>
+            <Badge size="sm">{activeFilterCount} active</Badge>
           )}
         </div>
-        <button
-          className="btn btn-xs btn-ghost gap-1"
+        <Button
+          variant="ghost"
+          size="xs"
           onClick={onReset}
           disabled={activeFilterCount === 0}
         >
-          <RotateCcw className="size-3" />
+          <RotateCcw data-icon="inline-start" />
           Clear all
-        </button>
+        </Button>
       </div>
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
         <div className="space-y-1.5">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-base-content/60">
+          <Label htmlFor={`${id}-include`} className={FILTER_LABEL_CLASS}>
             Include
-          </p>
-          <input
-            className="input input-bordered input-sm w-full bg-base-100"
+          </Label>
+          <Input
+            id={`${id}-include`}
             placeholder="e.g. seo, tool"
-            value={filters.include}
+            value={draft.include}
             onChange={(e) => update("include", e.target.value)}
           />
         </div>
         <div className="space-y-1.5">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-base-content/60">
+          <Label htmlFor={`${id}-exclude`} className={FILTER_LABEL_CLASS}>
             Exclude
-          </p>
-          <input
-            className="input input-bordered input-sm w-full bg-base-100"
+          </Label>
+          <Input
+            id={`${id}-exclude`}
             placeholder="e.g. free, cheap"
-            value={filters.exclude}
+            value={draft.exclude}
             onChange={(e) => update("exclude", e.target.value)}
           />
         </div>
@@ -113,17 +85,40 @@ export function FilterPanel({
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
         <RangeFilter
           title="Desktop position"
-          minValue={filters.minDesktopPos}
-          maxValue={filters.maxDesktopPos}
+          minValue={draft.minDesktopPos}
+          maxValue={draft.maxDesktopPos}
           onMinChange={(v) => update("minDesktopPos", v)}
           onMaxChange={(v) => update("maxDesktopPos", v)}
         />
         <RangeFilter
           title="Mobile position"
-          minValue={filters.minMobilePos}
-          maxValue={filters.maxMobilePos}
+          minValue={draft.minMobilePos}
+          maxValue={draft.maxMobilePos}
           onMinChange={(v) => update("minMobilePos", v)}
           onMaxChange={(v) => update("maxMobilePos", v)}
+        />
+      </div>
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
+        <RangeFilter
+          title="Volume"
+          minValue={draft.minVolume}
+          maxValue={draft.maxVolume}
+          onMinChange={(v) => update("minVolume", v)}
+          onMaxChange={(v) => update("maxVolume", v)}
+        />
+        <RangeFilter
+          title="Keyword difficulty"
+          minValue={draft.minKd}
+          maxValue={draft.maxKd}
+          onMinChange={(v) => update("minKd", v)}
+          onMaxChange={(v) => update("maxKd", v)}
+        />
+        <RangeFilter
+          title="CPC"
+          minValue={draft.minCpc}
+          maxValue={draft.maxCpc}
+          onMinChange={(v) => update("minCpc", v)}
+          onMaxChange={(v) => update("maxCpc", v)}
         />
       </div>
     </div>
@@ -146,31 +141,40 @@ export function DomainListFilterBar({
   onChange: (filters: DomainListFilters) => void;
   onReset: () => void;
 }) {
+  const id = useId();
+  const deviceItems = [
+    { value: "all", label: "All devices" },
+    ...options.devices,
+  ];
+  const locationItems = [
+    { value: "all", label: "All countries" },
+    ...options.locations,
+  ];
+
   return (
-    <div className="border-t border-base-300 px-5 py-3">
+    <div className="border-t border-border px-5 py-3">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
-        <label className="form-control flex-1 gap-1.5">
-          <span className="text-[11px] font-semibold uppercase tracking-wide text-base-content/60">
+        <div className="flex flex-1 flex-col gap-1.5">
+          <Label htmlFor={`${id}-search`} className={FILTER_LABEL_CLASS}>
             Search
-          </span>
-          <input
-            className="input input-bordered input-sm w-full bg-base-100"
+          </Label>
+          <Input
+            id={`${id}-search`}
             placeholder="Domain or website"
             value={filters.query}
             onChange={(event) =>
               onChange({ ...filters, query: event.target.value })
             }
           />
-        </label>
-        <label className="form-control gap-1.5 lg:w-44">
-          <span className="text-[11px] font-semibold uppercase tracking-wide text-base-content/60">
+        </div>
+        <div className="flex flex-col gap-1.5 lg:w-44">
+          <Label htmlFor={`${id}-device`} className={FILTER_LABEL_CLASS}>
             Device
-          </span>
-          <select
-            className="select select-bordered select-sm w-full bg-base-100"
+          </Label>
+          <Select
+            items={deviceItems}
             value={filters.device}
-            onChange={(event) => {
-              const value = event.target.value;
+            onValueChange={(value) => {
               if (
                 value === "all" ||
                 value === "both" ||
@@ -181,44 +185,51 @@ export function DomainListFilterBar({
               }
             }}
           >
-            <option value="all">All devices</option>
-            {options.devices.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="form-control gap-1.5 lg:w-52">
-          <span className="text-[11px] font-semibold uppercase tracking-wide text-base-content/60">
+            <SelectTrigger id={`${id}-device`} className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {deviceItems.map((item) => (
+                <SelectItem key={item.value} value={item.value}>
+                  {item.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex flex-col gap-1.5 lg:w-52">
+          <Label htmlFor={`${id}-country`} className={FILTER_LABEL_CLASS}>
             Country
-          </span>
-          <select
-            className="select select-bordered select-sm w-full bg-base-100"
+          </Label>
+          <Select
+            items={locationItems}
             value={filters.locationCode}
-            onChange={(event) =>
-              onChange({ ...filters, locationCode: event.target.value })
-            }
+            onValueChange={(value) => {
+              if (value) onChange({ ...filters, locationCode: value });
+            }}
           >
-            <option value="all">All countries</option>
-            {options.locations.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </label>
+            <SelectTrigger id={`${id}-country`} className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {locationItems.map((item) => (
+                <SelectItem key={item.value} value={item.value}>
+                  {item.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
         {activeFilterCount > 0 && (
-          <button
-            className="btn btn-ghost btn-sm gap-1.5 self-start lg:self-auto"
+          <Button
+            variant="ghost"
+            className="self-start lg:self-auto"
             onClick={onReset}
           >
-            <RotateCcw className="size-3" />
+            <RotateCcw data-icon="inline-start" />
             Clear
-            <span className="badge badge-xs badge-primary border-0 text-primary-content">
-              {activeFilterCount}
-            </span>
-          </button>
+            <Badge size="sm">{activeFilterCount}</Badge>
+          </Button>
         )}
       </div>
     </div>
@@ -239,21 +250,21 @@ function RangeFilter({
   onMaxChange: (v: string) => void;
 }) {
   return (
-    <div className="rounded-lg border border-base-300 bg-base-100 p-2.5 space-y-2">
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-base-content/60">
-        {title}
-      </p>
+    <div className="space-y-2 rounded-lg border border-border bg-card p-2.5">
+      <p className={FILTER_LABEL_CLASS}>{title}</p>
       <div className="grid grid-cols-2 gap-2">
-        <input
-          className="input input-bordered input-xs bg-base-100"
+        <Input
+          className="h-7"
           placeholder="Min"
+          aria-label={`${title} min`}
           type="number"
           value={minValue}
           onChange={(e) => onMinChange(e.target.value)}
         />
-        <input
-          className="input input-bordered input-xs bg-base-100"
+        <Input
+          className="h-7"
           placeholder="Max"
+          aria-label={`${title} max`}
           type="number"
           value={maxValue}
           onChange={(e) => onMaxChange(e.target.value)}
@@ -261,139 +272,4 @@ function RangeFilter({
       </div>
     </div>
   );
-}
-
-export function applyDomainListFilters<T extends DomainFilterableConfig>(
-  configs: T[],
-  filters: DomainListFilters,
-): T[] {
-  const query = filters.query.trim().toLowerCase();
-  const locationCode =
-    filters.locationCode === "all" ? null : Number(filters.locationCode);
-
-  return configs.filter((config) => {
-    if (query && !config.domain.toLowerCase().includes(query)) return false;
-
-    if (filters.device !== "all" && config.devices !== filters.device) {
-      return false;
-    }
-
-    if (locationCode !== null && config.locationCode !== locationCode) {
-      return false;
-    }
-
-    return true;
-  });
-}
-
-export function getDomainListFilterOptions(configs: DomainFilterableConfig[]): {
-  devices: DomainListFilterOption[];
-  locations: DomainListFilterOption[];
-} {
-  const deviceValues = new Set(configs.map((config) => config.devices));
-  const devices = DEVICE_FILTER_ORDER.filter((device) =>
-    deviceValues.has(device),
-  ).map((device) => ({
-    value: device,
-    label: devicesLabel(device),
-  }));
-
-  const locationMap = new Map<number, string>();
-  for (const config of configs) {
-    locationMap.set(
-      config.locationCode,
-      LOCATIONS[config.locationCode] ?? String(config.locationCode),
-    );
-  }
-
-  const locations = Array.from(locationMap, ([code, label]) => ({
-    value: String(code),
-    label,
-  })).toSorted((a, b) => a.label.localeCompare(b.label));
-
-  return { devices, locations };
-}
-
-export function applyFilters(
-  rows: RankTrackingRow[],
-  filters: Filters,
-): RankTrackingRow[] {
-  const includeTerms = filters.include
-    ? filters.include
-        .toLowerCase()
-        .split(",")
-        .map((t) => t.trim())
-        .filter(Boolean)
-    : [];
-  const excludeTerms = filters.exclude
-    ? filters.exclude
-        .toLowerCase()
-        .split(",")
-        .map((t) => t.trim())
-        .filter(Boolean)
-    : [];
-
-  return rows.filter((row) => {
-    const kw = row.keyword.toLowerCase();
-
-    if (includeTerms.length > 0 && !includeTerms.some((t) => kw.includes(t)))
-      return false;
-
-    if (excludeTerms.some((t) => kw.includes(t))) return false;
-
-    if (
-      !matchesPositionFilter(
-        row.desktop.position,
-        filters.minDesktopPos,
-        filters.maxDesktopPos,
-      )
-    )
-      return false;
-
-    if (
-      !matchesPositionFilter(
-        row.mobile.position,
-        filters.minMobilePos,
-        filters.maxMobilePos,
-      )
-    )
-      return false;
-
-    return true;
-  });
-}
-
-export function matchesPositionFilter(
-  position: number | null,
-  minValue: string,
-  maxValue: string,
-): boolean {
-  if (!minValue && !maxValue) return true;
-
-  const max = maxValue === "" ? Infinity : Number(maxValue);
-  if (max === 0) return position === null;
-
-  if (position === null) return false;
-
-  const min = minValue === "" ? 0 : Number(minValue);
-  return position >= min && position <= max;
-}
-
-export function countActiveFilters(filters: Filters): number {
-  let count = 0;
-  if (filters.include) count++;
-  if (filters.exclude) count++;
-  if (filters.minDesktopPos || filters.maxDesktopPos) count++;
-  if (filters.minMobilePos || filters.maxMobilePos) count++;
-  return count;
-}
-
-export function countActiveDomainListFilters(
-  filters: DomainListFilters,
-): number {
-  let count = 0;
-  if (filters.query.trim()) count++;
-  if (filters.device !== "all") count++;
-  if (filters.locationCode !== "all") count++;
-  return count;
 }

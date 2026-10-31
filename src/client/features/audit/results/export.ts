@@ -1,7 +1,53 @@
 import type { AuditResultsData } from "@/client/features/audit/results/types";
-import { buildCsv, type CsvValue, downloadCsv } from "@/client/lib/csv";
-import { downloadFile } from "@/client/lib/download";
-import { exportTableToSheets } from "@/client/lib/exportToSheets";
+import { getIssueDescriptor } from "@/shared/audit-issues";
+import type { CsvValue } from "@/client/lib/csv";
+import { exportRows } from "@/client/lib/exportRows";
+
+type AuditExportFormat = "csv" | "json" | "sheets";
+
+const ISSUES_HEADERS = ["Severity", "Issue", "URL", "Details", "How To Fix"];
+
+function issuesRows(issues: AuditResultsData["issues"]): CsvValue[][] {
+  return issues.map((issue) => {
+    const descriptor = getIssueDescriptor(issue.issueType);
+    return [
+      issue.severity,
+      descriptor?.title ?? issue.issueType,
+      issue.pageUrl,
+      issue.detailsJson ?? "",
+      descriptor?.howToFix ?? "",
+    ];
+  });
+}
+
+export function exportIssues(
+  issues: AuditResultsData["issues"],
+  format: AuditExportFormat,
+) {
+  void exportRows({
+    format,
+    feature: "audit_issues",
+    headers: ISSUES_HEADERS,
+    rows: issuesRows(issues),
+    filename: "audit-issues",
+    records:
+      format === "json"
+        ? issues.map((issue) => {
+            const descriptor = getIssueDescriptor(issue.issueType);
+            return {
+              severity: issue.severity,
+              issueType: issue.issueType,
+              issue: descriptor?.title ?? issue.issueType,
+              url: issue.pageUrl,
+              details: issue.detailsJson
+                ? (JSON.parse(issue.detailsJson) as unknown)
+                : null,
+              howToFix: descriptor?.howToFix ?? null,
+            };
+          })
+        : undefined,
+  });
+}
 
 const PAGES_HEADERS = [
   "URL",
@@ -61,10 +107,15 @@ function performanceRows(
 
 export function exportPages(
   pages: AuditResultsData["pages"],
-  format: "csv" | "json" | "sheets",
+  format: AuditExportFormat,
 ) {
-  if (format === "json") {
-    const rows = pages.map((page) => ({
+  void exportRows({
+    format,
+    feature: "audit_pages",
+    headers: PAGES_HEADERS,
+    rows: pagesRows(pages),
+    filename: "audit-pages",
+    records: pages.map((page) => ({
       url: page.url,
       statusCode: page.statusCode,
       title: page.title ?? "",
@@ -73,34 +124,22 @@ export function exportPages(
       imagesTotal: page.imagesTotal,
       imagesMissingAlt: page.imagesMissingAlt,
       responseTimeMs: page.responseTimeMs,
-    }));
-    downloadFile(
-      JSON.stringify(rows, null, 2),
-      "audit-pages.json",
-      "application/json",
-    );
-    return;
-  }
-
-  if (format === "sheets") {
-    void exportTableToSheets({
-      headers: PAGES_HEADERS,
-      rows: pagesRows(pages),
-      feature: "audit_pages",
-    });
-    return;
-  }
-
-  downloadCsv("audit-pages.csv", buildCsv(PAGES_HEADERS, pagesRows(pages)));
+    })),
+  });
 }
 
 export function exportPerformance(
   lighthouse: AuditResultsData["lighthouse"],
   pages: AuditResultsData["pages"],
-  format: "csv" | "json" | "sheets",
+  format: AuditExportFormat,
 ) {
-  if (format === "json") {
-    const rows = lighthouse.map((result) => {
+  void exportRows({
+    format,
+    feature: "audit_performance",
+    headers: PERFORMANCE_HEADERS,
+    rows: performanceRows(lighthouse, pages),
+    filename: "audit-performance",
+    records: lighthouse.map((result) => {
       const page = pages.find((candidate) => candidate.id === result.pageId);
       return {
         url: page?.url ?? "",
@@ -113,25 +152,6 @@ export function exportPerformance(
         inpMs: result.inpMs,
         ttfbMs: result.ttfbMs,
       };
-    });
-    downloadFile(
-      JSON.stringify(rows, null, 2),
-      "audit-performance.json",
-      "application/json",
-    );
-    return;
-  }
-
-  const rows = performanceRows(lighthouse, pages);
-
-  if (format === "sheets") {
-    void exportTableToSheets({
-      headers: PERFORMANCE_HEADERS,
-      rows,
-      feature: "audit_performance",
-    });
-    return;
-  }
-
-  downloadCsv("audit-performance.csv", buildCsv(PERFORMANCE_HEADERS, rows));
+    }),
+  });
 }

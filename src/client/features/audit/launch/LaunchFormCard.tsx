@@ -1,22 +1,59 @@
-import { Loader2 } from "lucide-react";
+import { Link } from "@tanstack/react-router";
+import { AlertCircle } from "lucide-react";
+import { Alert, AlertTitle } from "@/client/components/ui/alert";
+import { Button } from "@/client/components/ui/button";
 import {
-  MAX_PAGES_LIMIT,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/client/components/ui/card";
+import {
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldLabel,
+} from "@/client/components/ui/field";
+import { Input } from "@/client/components/ui/input";
+import { InsufficientCreditsError } from "@/client/features/billing/InsufficientCreditsError";
+import { Switch } from "@/client/components/ui/switch";
+import {
+  clampMaxPagesInput,
   MIN_PAGES,
 } from "@/client/features/audit/launch/types";
 import type { useLaunchController } from "@/client/features/audit/launch/useLaunchController";
 import { getFieldError, getFormError } from "@/client/lib/forms";
+import {
+  isEveryAppClientAuthMode,
+  isHostedClientAuthMode,
+} from "@/lib/auth-mode";
+import { PAID_MAX_AUDIT_PAGES } from "@/shared/audit-limits";
+import { renderingEstimateText } from "@/shared/audit-rendering";
+import { SUBSCRIBE_ROUTE } from "@/shared/billing";
 
 type Props = {
   launchForm: ReturnType<typeof useLaunchController>["launchForm"];
   commitMaxPagesInput: () => number;
+  maxPagesLimit: number;
+  canRenderJavaScript?: boolean;
+  outOfCredits?: boolean;
 };
 
-export function LaunchFormCard({ commitMaxPagesInput, launchForm }: Props) {
+export function LaunchFormCard({
+  commitMaxPagesInput,
+  launchForm,
+  maxPagesLimit,
+  canRenderJavaScript,
+  outOfCredits,
+}: Props) {
   return (
-    <div className="card bg-base-100 border border-base-300">
-      <div className="card-body gap-4">
-        <h2 className="card-title text-base">Start New Audit</h2>
-
+    <Card>
+      <CardHeader>
+        <CardTitle>
+          <h2>Start New Audit</h2>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
         <form
           className="grid grid-cols-1 gap-3 lg:grid-cols-12 lg:items-center"
           onSubmit={(event) => {
@@ -29,39 +66,33 @@ export function LaunchFormCard({ commitMaxPagesInput, launchForm }: Props) {
               const urlError = getFieldError(field.state.meta.errors);
 
               return (
-                <label
-                  className={`input input-bordered w-full lg:col-span-9 ${urlError ? "input-error" : ""}`}
-                >
-                  <input
-                    placeholder="https://example.com"
-                    value={field.state.value}
-                    onChange={(event) => {
-                      field.handleChange(event.target.value);
-                      if (launchForm.state.errorMap.onSubmit) {
-                        launchForm.setErrorMap({ onSubmit: undefined });
-                      }
-                    }}
-                  />
-                </label>
+                <Input
+                  className="lg:col-span-9"
+                  aria-label="Site URL"
+                  aria-invalid={urlError ? true : undefined}
+                  placeholder="https://example.com"
+                  value={field.state.value}
+                  onBlur={field.handleBlur}
+                  onChange={(event) => {
+                    field.handleChange(event.target.value);
+                    if (launchForm.state.errorMap.onSubmit) {
+                      launchForm.setErrorMap({ onSubmit: undefined });
+                    }
+                  }}
+                />
               );
             }}
           </launchForm.Field>
 
           <launchForm.Subscribe selector={(state) => state.isSubmitting}>
             {(isSubmitting) => (
-              <button
+              <Button
                 type="submit"
-                className="btn btn-primary btn-sm w-full lg:col-span-3"
-                disabled={isSubmitting}
+                className="w-full lg:col-span-3"
+                pending={isSubmitting}
               >
-                {isSubmitting ? (
-                  <>
-                    <Loader2 className="size-4 animate-spin" /> Starting...
-                  </>
-                ) : (
-                  "Start Audit"
-                )}
-              </button>
+                {isSubmitting ? "Starting..." : "Start Audit"}
+              </Button>
             )}
           </launchForm.Subscribe>
 
@@ -69,103 +100,187 @@ export function LaunchFormCard({ commitMaxPagesInput, launchForm }: Props) {
             <LaunchOptions
               launchForm={launchForm}
               commitMaxPagesInput={commitMaxPagesInput}
+              maxPagesLimit={maxPagesLimit}
             />
-            <LighthouseOptions launchForm={launchForm} />
+            <div className="space-y-4">
+              <LighthouseOptions launchForm={launchForm} />
+              <RenderingOptions
+                launchForm={launchForm}
+                maxPagesLimit={maxPagesLimit}
+                canRenderJavaScript={canRenderJavaScript}
+              />
+            </div>
           </div>
         </form>
 
-        <LaunchErrors launchForm={launchForm} />
-      </div>
-    </div>
+        <LaunchErrors launchForm={launchForm} outOfCredits={outOfCredits} />
+      </CardContent>
+    </Card>
   );
 }
 
-function LaunchOptions({ launchForm, commitMaxPagesInput }: Props) {
+function LaunchOptions({
+  launchForm,
+  commitMaxPagesInput,
+  maxPagesLimit,
+}: Props) {
   return (
-    <div className="rounded-lg border border-base-300 bg-base-200/20 p-3 space-y-2">
-      <label className="text-xs font-medium uppercase tracking-wide text-base-content/60">
-        Crawl limit
-      </label>
-      <div className="flex items-center gap-2">
-        <span className="text-sm text-base-content/70">Max pages</span>
-        <launchForm.Field name="maxPagesInput">
-          {(field) => (
-            <input
-              type="number"
-              min={MIN_PAGES}
-              max={MAX_PAGES_LIMIT}
-              className="input input-bordered input-sm w-28"
-              value={field.state.value}
-              onChange={(event) => {
-                const next = event.target.value;
-                if (!/^\d*$/.test(next)) return;
-                field.handleChange(next);
-                if (launchForm.state.errorMap.onSubmit) {
-                  launchForm.setErrorMap({ onSubmit: undefined });
-                }
-              }}
-              onBlur={commitMaxPagesInput}
-            />
-          )}
-        </launchForm.Field>
-      </div>
-      <p className="text-xs text-base-content/50">
-        Enter any value from {MIN_PAGES} to {MAX_PAGES_LIMIT}.
-      </p>
-    </div>
+    <Field className="rounded-lg border border-border p-3">
+      <FieldLabel htmlFor="audit-max-pages">Max pages</FieldLabel>
+      <launchForm.Field name="maxPagesInput">
+        {(field) => (
+          <Input
+            id="audit-max-pages"
+            type="number"
+            min={MIN_PAGES}
+            max={maxPagesLimit}
+            className="w-28"
+            value={field.state.value}
+            onChange={(event) => {
+              const next = event.target.value;
+              if (!/^\d*$/.test(next)) return;
+              field.handleChange(next);
+              if (launchForm.state.errorMap.onSubmit) {
+                launchForm.setErrorMap({ onSubmit: undefined });
+              }
+            }}
+            onBlur={commitMaxPagesInput}
+          />
+        )}
+      </launchForm.Field>
+      <FieldDescription>
+        Enter any value from {MIN_PAGES} to {maxPagesLimit.toLocaleString()}.
+        {maxPagesLimit < PAID_MAX_AUDIT_PAGES ? (
+          <>
+            {" "}
+            <Link to={SUBSCRIBE_ROUTE} search={{ upgrade: true }}>
+              Upgrade
+            </Link>{" "}
+            to crawl up to {PAID_MAX_AUDIT_PAGES.toLocaleString()} pages.
+          </>
+        ) : null}
+      </FieldDescription>
+    </Field>
   );
 }
 
 function LighthouseOptions({ launchForm }: Pick<Props, "launchForm">) {
   return (
-    <div className="rounded-lg border border-base-300 bg-base-200/20 p-3 space-y-2">
-      <label className="label cursor-pointer justify-start gap-2 p-0">
+    <Field className="rounded-lg border border-border p-3">
+      <div className="flex items-center gap-2">
         <launchForm.Field name="runLighthouse">
           {(field) => (
-            <input
-              type="checkbox"
-              className="toggle toggle-sm toggle-primary"
+            <Switch
+              id="audit-run-lighthouse"
               checked={Boolean(field.state.value)}
-              onChange={(event) => field.handleChange(event.target.checked)}
+              onCheckedChange={(checked) => field.handleChange(checked)}
             />
           )}
         </launchForm.Field>
-        <span
-          className="text-sm font-medium text-base-content/80"
+        <FieldLabel
+          htmlFor="audit-run-lighthouse"
           title="Lighthouse measures the performance of your pages and identifies issues."
         >
           Include Lighthouse
-        </span>
-      </label>
+        </FieldLabel>
+      </div>
 
       <launchForm.Subscribe
         selector={(snapshot) => snapshot.values.runLighthouse}
       >
         {(runLighthouse) =>
           runLighthouse ? (
-            <div className="space-y-1">
-              <p className="text-xs text-base-content/60">
-                We choose a sample of 20 pages to audit, removing pages from
-                duplicate templates.
-              </p>
-            </div>
+            <FieldDescription>
+              We choose a sample of 20 pages to audit, removing pages from
+              duplicate templates.
+            </FieldDescription>
           ) : null
         }
       </launchForm.Subscribe>
-    </div>
+    </Field>
   );
 }
 
-function LaunchErrors({ launchForm }: Pick<Props, "launchForm">) {
+function RenderingOptions({
+  launchForm,
+  maxPagesLimit,
+  canRenderJavaScript,
+}: Pick<Props, "launchForm" | "maxPagesLimit" | "canRenderJavaScript">) {
+  return (
+    <Field className="rounded-lg border border-border p-3">
+      <div className="flex items-center gap-2">
+        <launchForm.Field name="renderJavaScript">
+          {(field) => (
+            <Switch
+              id="audit-render-javascript"
+              checked={field.state.value}
+              disabled={canRenderJavaScript !== true}
+              onCheckedChange={(checked) => field.handleChange(checked)}
+            />
+          )}
+        </launchForm.Field>
+        <FieldLabel
+          htmlFor="audit-render-javascript"
+          title="Loads each page in a browser before auditing it. Slower."
+        >
+          Render JavaScript
+        </FieldLabel>
+      </div>
+
+      {isHostedClientAuthMode() && (
+        <launchForm.Subscribe
+          selector={(state) => ({
+            renderJavaScript: state.values.renderJavaScript,
+            maxPagesInput: state.values.maxPagesInput,
+          })}
+        >
+          {({ renderJavaScript, maxPagesInput }) =>
+            renderJavaScript ? (
+              <FieldDescription>
+                {renderingEstimateText(
+                  clampMaxPagesInput(maxPagesInput, maxPagesLimit),
+                )}
+              </FieldDescription>
+            ) : null
+          }
+        </launchForm.Subscribe>
+      )}
+      {canRenderJavaScript === false && isEveryAppClientAuthMode() && (
+        <FieldDescription>
+          JavaScript rendering isn't set up on your Every App gateway yet. An
+          owner or admin sets it with{" "}
+          <code>pnpm everyapp secret set CONTEXT_API_KEY</code>.
+        </FieldDescription>
+      )}
+      {canRenderJavaScript === false && !isEveryAppClientAuthMode() && (
+        <FieldDescription>
+          This deployment has no browser, so rendering needs a Context.dev API
+          key. Set <code>CONTEXT_API_KEY</code>, restart OpenSEO, then reload
+          this page.{" "}
+          <a
+            href="https://github.com/every-app/open-seo/blob/main/docs/SELF_HOSTING_CLOUDFLARE_OPERATIONS.md#render-javascript-in-site-audits"
+            target="_blank"
+            rel="noreferrer"
+          >
+            Setup guide
+          </a>
+        </FieldDescription>
+      )}
+    </Field>
+  );
+}
+
+function LaunchErrors({
+  launchForm,
+  outOfCredits,
+}: Pick<Props, "launchForm" | "outOfCredits">) {
   return (
     <div className="space-y-2">
       <launchForm.Field name="url">
         {(field) => {
           const urlError = getFieldError(field.state.meta.errors);
 
-          return urlError ? (
-            <p className="text-sm text-error">{urlError}</p>
-          ) : null;
+          return urlError ? <FieldError>{urlError}</FieldError> : null;
         }}
       </launchForm.Field>
 
@@ -173,10 +288,13 @@ function LaunchErrors({ launchForm }: Pick<Props, "launchForm">) {
         {(submitError) => {
           const errorMessage = getFormError(submitError);
 
+          if (errorMessage && outOfCredits)
+            return <InsufficientCreditsError title={errorMessage} />;
           return errorMessage ? (
-            <div className="alert alert-error py-2">
-              <span className="text-sm">{errorMessage}</span>
-            </div>
+            <Alert variant="destructive">
+              <AlertCircle />
+              <AlertTitle>{errorMessage}</AlertTitle>
+            </Alert>
           ) : null;
         }}
       </launchForm.Subscribe>

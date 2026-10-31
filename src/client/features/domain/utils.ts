@@ -4,7 +4,7 @@ import type {
   PageRow,
   SortOrder,
 } from "@/client/features/domain/types";
-import { isValidDomainHost } from "@/types/schemas/domain";
+import { parseResearchTarget } from "@/shared/researchScope";
 
 export function toSortMode(value: string | null): DomainSortMode | undefined {
   if (
@@ -55,26 +55,10 @@ export function toPageSortMode(
   return "traffic";
 }
 
-export function normalizeDomainTarget(input: string): string | null {
-  const value = input.trim();
-  if (!value) return null;
-
-  const withProtocol = /^[a-zA-Z][a-zA-Z\d+.-]*:\/\//.test(value)
-    ? value
-    : `https://${value}`;
-
-  try {
-    const parsed = new URL(withProtocol);
-    const hostname = parsed.hostname.toLowerCase();
-    if (!hostname || !hostname.includes(".")) return null;
-    if (!/^[a-z\d.-]+$/.test(hostname)) return null;
-    if (!isValidDomainHost(hostname)) return null;
-
-    const path = parsed.pathname === "/" ? "" : parsed.pathname;
-    return `${hostname}${path}`;
-  } catch {
-    return null;
-  }
+/** Normalized path of a domain input; `""` when it is a root or unparseable. */
+export function getResearchInputPath(input: string): string {
+  const parsed = parseResearchTarget(input);
+  return parsed.ok ? parsed.target.path : "";
 }
 
 export function formatNumber(value: number | null | undefined) {
@@ -91,7 +75,8 @@ export function formatMetric(
   value: number | null | undefined,
   hasData: boolean | undefined,
 ) {
-  if (!hasData) return "Not enough data";
+  // The page's "Not enough data" banner explains the empty values.
+  if (!hasData) return "-";
   return formatRounded(value);
 }
 
@@ -116,5 +101,17 @@ export function pagesToTable(rows: PageRow[]): ExportTable {
   return {
     headers: ["Page", "Organic Traffic", "Keywords"],
     rows: rows.map((row) => [row.page, row.organicTraffic, row.keywords]),
+  };
+}
+
+/** Adapts the URL-driven domain sort to the shared `SortableHeader`. */
+export function domainSortColumn(
+  isActive: boolean,
+  order: SortOrder,
+  onClick: () => void,
+) {
+  return {
+    getIsSorted: () => (isActive ? order : false),
+    getToggleSortingHandler: () => onClick,
   };
 }

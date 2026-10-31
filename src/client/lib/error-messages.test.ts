@@ -10,9 +10,7 @@ describe("getStandardErrorMessage", () => {
 
   it("returns custom messages when the error is not a shared code", () => {
     expect(
-      getStandardErrorMessage(
-        new Error("DataForSEO task missing billing metadata. Response: {...}"),
-      ),
-    ).toBe("DataForSEO task missing billing metadata. Response: {...}");
+      getStandardErrorMessage(new Error("Something failed: try again")),
+    ).toBe("Something failed: try again");
   });
 });

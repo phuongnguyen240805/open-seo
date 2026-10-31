@@ -11,29 +11,20 @@ import { TanStackDevtools } from "@tanstack/react-devtools";
 import { QueryClientProvider } from "@tanstack/react-query";
 import * as React from "react";
 import { DefaultCatchBoundary } from "@/client/components/DefaultCatchBoundary";
+import { captureGoogleLinkError } from "@/client/features/integrations/googleLinkError";
 import { ExportToSheetsModal } from "@/client/components/table/ExportToSheetsModal";
 import { themePreferenceInitScript } from "@/client/lib/theme";
-import {
-  identifyAnalyticsUser,
-  resetAnalyticsUser,
-  startAnalyticsCapture,
-  stopAnalyticsCapture,
-} from "@/client/lib/posthog";
-import {
-  captureRedditAttributionFromLocation,
-  getStoredRedditAttribution,
-  hasMarkedRedditSignupConversion,
-  markRedditSignupConversion,
-  unmarkRedditSignupConversion,
-} from "@/client/lib/reddit-attribution";
+import { runtimeAuthModeScript } from "@/lib/auth-mode";
 import { NotFound } from "@/client/components/NotFound";
+import { PrivacyBootstrap } from "@/client/components/PrivacyChoices";
+import { TooltipProvider } from "@/client/components/ui/tooltip";
 import appCss from "@/client/styles/app.css?url";
-import { useSession } from "@/lib/auth-client";
-import { isHostedClientAuthMode } from "@/lib/auth-mode";
 import { Toaster } from "sonner";
 import { queryClient } from "@/client/tanstack-db";
-import { getActiveOrganizationId } from "@/lib/auth-session";
-import { captureRedditConversionEvent } from "@/serverFunctions/redditConversions";
+
+// Capture Google link error params before the router starts — a route loader
+// redirect would otherwise replace the URL and lose them. See googleLinkError.ts.
+captureGoogleLinkError();
 
 export const Route = createRootRoute({
   head: () => ({
@@ -47,6 +38,15 @@ export const Route = createRootRoute({
       {
         name: "viewport",
         content: "width=device-width, initial-scale=1, viewport-fit=cover",
+      },
+      // Disable browser auto-translate (Google Translate) app-wide. It rewrites
+      // text nodes into <font> wrappers, which React then can't remove/insert,
+      // crashing render with NotFoundError ("removeChild"/"insertBefore"). The
+      // product UI is data-dense (keywords, domains, metrics) and not meaningful
+      // to machine-translate; the marketing site is a separate app and unaffected.
+      {
+        name: "google",
+        content: "notranslate",
       },
       {
         name: "apple-mobile-web-app-capable",
@@ -91,82 +91,24 @@ function AppLayout() {
   return <Outlet />;
 }
 
-function PostHogBootstrap() {
-  const isHostedMode = isHostedClientAuthMode();
-  const { data: session, isPending: isSessionPending } = useSession();
-  const userId = session?.user?.id ?? null;
-  const optedOut = session?.user?.analyticsOptedOut === true;
-  const organizationId = getActiveOrganizationId(session);
-  const previousUserIdRef = React.useRef<string | null>(null);
-  const redditSignupInFlightRef = React.useRef(false);
-
-  React.useEffect(() => {
-    captureRedditAttributionFromLocation();
-  }, []);
-
-  React.useEffect(() => {
-    if (!isHostedMode || isSessionPending) {
-      return;
-    }
-
-    if (userId && !optedOut) {
-      startAnalyticsCapture();
-      identifyAnalyticsUser({ userId, organizationId });
-      previousUserIdRef.current = userId;
-    } else if (userId && optedOut) {
-      stopAnalyticsCapture();
-    } else if (previousUserIdRef.current) {
-      previousUserIdRef.current = null;
-      resetAnalyticsUser();
-    }
-  }, [isHostedMode, isSessionPending, optedOut, organizationId, userId]);
-
-  React.useEffect(() => {
-    if (!isHostedMode || isSessionPending || !userId) return;
-    if (hasMarkedRedditSignupConversion(userId)) return;
-
-    const attribution = getStoredRedditAttribution();
-    if (!attribution) return;
-    if (redditSignupInFlightRef.current) return;
-
-    redditSignupInFlightRef.current = true;
-    void captureRedditConversionEvent({
-      data: { attribution, eventType: "SIGN_UP" },
-    })
-      .then((result) => {
-        if (result.status === "sent" || result.status === "already_sent") {
-          markRedditSignupConversion(userId);
-        }
-      })
-      .catch(() => {
-        // The server deduplicates this event; allow a future session to retry.
-        unmarkRedditSignupConversion();
-      })
-      .finally(() => {
-        redditSignupInFlightRef.current = false;
-      });
-  }, [isHostedMode, isSessionPending, userId]);
-
-  return null;
-}
-
 function RootDocument({ children }: { children: React.ReactNode }) {
   const showDevtools =
     import.meta.env.DEV && import.meta.env.VITE_SHOW_DEVTOOLS !== "false";
 
   return (
-    <html suppressHydrationWarning>
+    <html suppressHydrationWarning translate="no">
       <head>
         <script
           dangerouslySetInnerHTML={{ __html: themePreferenceInitScript }}
         />
+        <script dangerouslySetInnerHTML={{ __html: runtimeAuthModeScript() }} />
         <HeadContent />
       </head>
       <body>
         <ClientOnly>
           <QueryClientProvider client={queryClient}>
-            <>
-              <PostHogBootstrap />
+            <TooltipProvider>
+              <PrivacyBootstrap />
               {children}
               <ExportToSheetsModal />
               <Toaster position="bottom-right" mobileOffset={{ bottom: 100 }} />
@@ -183,7 +125,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
                   ]}
                 />
               ) : null}
-            </>
+            </TooltipProvider>
           </QueryClientProvider>
         </ClientOnly>
         <Scripts />

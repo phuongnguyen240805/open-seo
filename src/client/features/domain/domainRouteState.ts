@@ -6,6 +6,7 @@ import {
   DEFAULT_LOCATION_CODE,
   isLabsLocationCode,
 } from "@/client/features/keywords/locations";
+import type { ProjectMarket } from "@/client/features/projects/types";
 import {
   EMPTY_DOMAIN_FILTERS,
   type DomainActiveTab,
@@ -20,15 +21,27 @@ import {
   PAGE_FILTER_FIELDS,
   PAGE_SEARCH_PARAM_BY_FIELD,
 } from "@/client/features/domain/domainFilterUtils";
-import { resolveSortOrder, toSortMode, toSortOrder } from "./utils";
+import {
+  defaultScopeForPath,
+  isScopeAllowedForInput,
+  type ResearchScope,
+} from "@/shared/researchScope";
+import {
+  getResearchInputPath,
+  resolveSortOrder,
+  toSortMode,
+  toSortOrder,
+} from "./utils";
 
 export type DomainOverviewRouteState = {
   domain: string;
-  subdomains: boolean;
+  scope: ResearchScope;
   sort: DomainSortMode;
   order: SortOrder;
   tab: DomainActiveTab;
+  defaultLocationCode: number;
   locationCode: number;
+  sentLocationCode: number | undefined;
   page: number;
   pageSize: number;
   appliedFilters: DomainFilterValues;
@@ -37,6 +50,18 @@ export type DomainOverviewRouteState = {
   hasAppliedPageFilters: boolean;
 };
 
+function resolveScope(search: DomainSearchParams): ResearchScope {
+  const path = getResearchInputPath(search.domain ?? "");
+  if (search.scope && isScopeAllowedForInput(search.scope, path)) {
+    return search.scope;
+  }
+  // Legacy param: pre-scope URLs encoded "Include subdomains" here.
+  if (search.subdomains != null) {
+    return search.subdomains ? "subdomains" : "domain";
+  }
+  return defaultScopeForPath(path);
+}
+
 function numberToFilterString(value: number | undefined): string {
   if (value == null || !Number.isFinite(value)) return "";
   return String(value);
@@ -44,21 +69,33 @@ function numberToFilterString(value: number | undefined): string {
 
 export function getDomainRouteState(
   search: DomainSearchParams,
+  projectMarket?: ProjectMarket,
 ): DomainOverviewRouteState {
   const normalizedSort = toSortMode(search.sort ?? null) ?? "traffic";
+  const defaultLocationCode =
+    projectMarket && isLabsLocationCode(projectMarket.locationCode)
+      ? projectMarket.locationCode
+      : DEFAULT_LOCATION_CODE;
   // Domain analytics is Labs-backed; Google-Ads-only countries aren't valid.
   const normalizedLocationCode =
     search.loc != null && isLabsLocationCode(search.loc)
       ? search.loc
-      : DEFAULT_LOCATION_CODE;
+      : defaultLocationCode;
 
   return {
     domain: search.domain ?? "",
-    subdomains: search.subdomains ?? true,
+    scope: resolveScope(search),
     sort: normalizedSort,
     order: resolveSortOrder(normalizedSort, toSortOrder(search.order ?? null)),
     tab: search.tab ?? "keywords",
+    defaultLocationCode,
     locationCode: normalizedLocationCode,
+    // A non-Labs `loc` is dropped so the server uses the same default the
+    // location select shows.
+    sentLocationCode:
+      search.loc != null && isLabsLocationCode(search.loc)
+        ? search.loc
+        : undefined,
     page: search.page != null && search.page > 0 ? search.page : 1,
     pageSize: search.size ?? DEFAULT_DOMAIN_KEYWORDS_PAGE_SIZE,
     appliedFilters: {

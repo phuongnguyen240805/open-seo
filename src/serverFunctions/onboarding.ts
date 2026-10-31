@@ -1,8 +1,11 @@
+import { waitUntil } from "cloudflare:workers";
 import { createServerFn } from "@tanstack/react-start";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { user, userOnboardingAnswers } from "@/db/schema";
 import { db } from "@/db";
+import { ActivationRepository } from "@/server/features/activation/repositories/ActivationRepository";
+import { captureServerEvent } from "@/server/lib/posthog";
 import { requireAuthenticatedContext } from "@/serverFunctions/middleware";
 
 const onboardingAnswersSchema = z.object({
@@ -10,7 +13,6 @@ const onboardingAnswersSchema = z.object({
   workFor: z.string().optional(),
   clientWebsiteCount: z.string().optional(),
   foundVia: z.string().optional(),
-  mcpSetupIntent: z.enum(["yes", "no"]).optional(),
   completed: z.boolean().optional(),
 });
 
@@ -25,7 +27,6 @@ export const getOnboardingAnswers = createServerFn({ method: "GET" })
         workFor: true,
         clientWebsiteCount: true,
         foundVia: true,
-        mcpSetupIntent: true,
       },
       where: eq(userOnboardingAnswers.userId, context.userId),
     });
@@ -59,14 +60,23 @@ export const getOnboardingAnswers = createServerFn({ method: "GET" })
         workFor: answers?.workFor ?? null,
         clientWebsiteCount: answers?.clientWebsiteCount ?? null,
         foundVia: answers?.foundVia ?? null,
-        mcpSetupIntent: answers?.mcpSetupIntent ?? null,
       },
     };
   });
 
+// The onboarding Agent setup step polls this to see when an agent connects.
+export const getMcpAuthorizedAt = createServerFn({ method: "GET" })
+  .middleware(requireAuthenticatedContext)
+  .handler(async ({ context }) => {
+    const activation = await ActivationRepository.getOrganizationActivation(
+      context.organizationId,
+    );
+    return { authorizedAt: activation?.firstMcpAuthorizedAt ?? null };
+  });
+
 export const saveOnboardingAnswers = createServerFn({ method: "POST" })
   .middleware(requireAuthenticatedContext)
-  .inputValidator((data: unknown) => onboardingAnswersSchema.parse(data))
+  .validator(onboardingAnswersSchema)
   .handler(async ({ data, context }) => {
     const now = new Date().toISOString();
     const completedAt = data.completed ? now : undefined;
@@ -79,19 +89,20 @@ export const saveOnboardingAnswers = createServerFn({ method: "POST" })
         ? { clientWebsiteCount: data.clientWebsiteCount }
         : {}),
       ...(data.foundVia !== undefined ? { foundVia: data.foundVia } : {}),
-      ...(data.mcpSetupIntent !== undefined
-        ? { mcpSetupIntent: data.mcpSetupIntent }
-        : {}),
       // Completing onboarding means the user passed the Search Console step, so
       // resolve the GSC prompt — the legacy re-engagement nudge must not fire
-      // for anyone who already saw that step.
+      // for anyone who already saw that step. COALESCE keeps an earlier
+      // completion, such as an agent's create_project.
       ...(completedAt !== undefined
-        ? { completedAt, gscNudgeDismissedAt: completedAt }
+        ? {
+            completedAt: sql`coalesce(${userOnboardingAnswers.completedAt}, ${completedAt})`,
+            gscNudgeDismissedAt: completedAt,
+          }
         : {}),
       updatedAt: now,
     };
 
-    await db
+    const [saved] = await db
       .insert(userOnboardingAnswers)
       .values({
         userId: context.userId,
@@ -100,7 +111,6 @@ export const saveOnboardingAnswers = createServerFn({ method: "POST" })
         workFor: data.workFor,
         clientWebsiteCount: data.clientWebsiteCount,
         foundVia: data.foundVia,
-        mcpSetupIntent: data.mcpSetupIntent,
         completedAt,
         gscNudgeDismissedAt: completedAt,
         updatedAt: now,
@@ -108,7 +118,19 @@ export const saveOnboardingAnswers = createServerFn({ method: "POST" })
       .onConflictDoUpdate({
         target: userOnboardingAnswers.userId,
         set,
-      });
+      })
+      .returning({ completedAt: userOnboardingAnswers.completedAt });
+
+    if (completedAt && saved?.completedAt === completedAt) {
+      waitUntil(
+        captureServerEvent({
+          distinctId: context.userId,
+          event: "onboarding:completed",
+          organizationId: context.organizationId,
+          properties: { via: "wizard" },
+        }),
+      );
+    }
 
     return { ok: true };
   });

@@ -1,6 +1,9 @@
 import { db } from "@/db";
 import { user } from "@/db/schema";
-import { ensureDelegatedOrganizationForUser } from "@/server/auth/delegated-organization";
+import {
+  ensureDelegatedOrganizationForUser,
+  ensureSharedWorkspaceOrganization,
+} from "@/server/auth/delegated-organization";
 import { eq } from "drizzle-orm";
 import type { EnsuredUserContext } from "./types";
 
@@ -16,7 +19,7 @@ function deriveUserName(email: string) {
   return email.split("@")[0] || "OpenSEO";
 }
 
-async function ensureUserRecord(userId: string, userEmail: string) {
+export async function ensureUserRecord(userId: string, userEmail: string) {
   const existing = await db.query.user.findFirst({
     columns: { email: true },
     where: eq(user.id, userId),
@@ -52,7 +55,7 @@ async function ensureUserRecord(userId: string, userEmail: string) {
   return existing.email;
 }
 
-export async function resolveDelegatedContext(
+async function resolveDelegatedContext(
   userId: string,
   userEmail: string,
 ): Promise<EnsuredUserContext> {
@@ -68,6 +71,30 @@ export async function resolveDelegatedContext(
     // Delegated auth (Cloudflare Access / local) has no unverified state.
     emailVerified: true,
     organizationId,
+    // Delegated orgs are one-implicit-user with no member rows; that user has
+    // full control of their own workspace.
+    role: "owner",
+  };
+}
+
+// Cloudflare Access mode: everyone the Access policy lets in works in one
+// shared workspace, keeping their own user identity. Per-user workspaces were
+// the pre-shared-workspace behavior; workspace-merge.ts folds those in.
+export async function resolveSharedWorkspaceContext(
+  userId: string,
+  userEmail: string,
+): Promise<EnsuredUserContext> {
+  const ensuredEmail = await ensureUserRecord(userId, userEmail);
+  const organizationId = await ensureSharedWorkspaceOrganization();
+
+  return {
+    userId,
+    userEmail: ensuredEmail,
+    emailVerified: true,
+    organizationId,
+    // The Access policy is the authorization boundary; everyone it admits has
+    // full control of the shared workspace.
+    role: "owner",
   };
 }
 

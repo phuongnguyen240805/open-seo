@@ -1,9 +1,20 @@
+import { waitUntil } from "cloudflare:workers";
 import { z } from "zod";
 import type { BillingCustomerContext } from "@/server/billing/subscription";
 import { createDataforseoClient } from "@/server/lib/dataforseo";
 import { buildCacheKey, getCached, setCached } from "@/server/lib/r2-cache";
-import { normalizeDomainInput, toRelativePath } from "@/server/lib/domainUtils";
+import {
+  parseResearchTargetOrThrow,
+  toRelativePath,
+} from "@/server/lib/domainUtils";
+import {
+  buildRelevantPagesScopeFilter,
+  type ScopeFilter,
+} from "@/server/lib/dataforseo/researchScopeFilters";
+import { assertFilterConditionBudget } from "@/server/lib/dataforseo/filters";
+import type { ResearchScope } from "@/shared/researchScope";
 import type { RelevantPagesItem } from "@/server/lib/dataforseo";
+import { computeHasMore } from "@/server/features/domain/services/pagination";
 import type { DomainKeywordsFilters } from "@/types/schemas/domain";
 
 const DOMAIN_PAGES_PAGE_TTL_SECONDS = 12 * 60 * 60;
@@ -69,7 +80,8 @@ function parseTerms(value: string | undefined): string[] {
 
 function buildPageFilters(
   filters: DomainKeywordsFilters,
-  searchTerm?: string,
+  searchTerm: string | undefined,
+  scopeFilter: ScopeFilter,
 ): unknown[] {
   const conditions: unknown[][] = [];
 
@@ -98,8 +110,12 @@ function buildPageFilters(
     conditions.push(["page_address", "ilike", `%${escapeLikeTerm(trimmed)}%`]);
   }
 
+  assertFilterConditionBudget(scopeFilter.conditionCount + conditions.length);
+
   const expressions: unknown[] = [];
-  for (const condition of conditions) pushAnd(expressions, condition);
+  for (const condition of [...scopeFilter.clauses, ...conditions]) {
+    pushAnd(expressions, condition);
+  }
   return expressions;
 }
 
@@ -121,7 +137,7 @@ export async function getPagesPage(
   input: {
     projectId: string;
     domain: string;
-    includeSubdomains: boolean;
+    scope?: ResearchScope;
     locationCode: number;
     languageCode: string;
     page: number;
@@ -133,16 +149,18 @@ export async function getPagesPage(
   },
   billingCustomer: BillingCustomerContext,
 ): Promise<DomainPagesPageResult> {
-  const domain = normalizeDomainInput(input.domain, input.includeSubdomains);
+  const target = parseResearchTargetOrThrow(input.domain, input.scope);
+  const scopeFilter = buildRelevantPagesScopeFilter(target);
   const offset = (input.page - 1) * input.pageSize;
   const orderBy = [`${SORT_FIELD_BY_MODE[input.sortMode]},${input.sortOrder}`];
-  const filters = buildPageFilters(input.filters, input.search);
+  const filters = buildPageFilters(input.filters, input.search, scopeFilter);
 
   const cacheKey = await buildCacheKey("domain:pages-page", {
     organizationId: billingCustomer.organizationId,
     projectId: input.projectId,
-    domain,
-    includeSubdomains: input.includeSubdomains,
+    domain: target.hostname,
+    scope: target.scope,
+    path: target.path,
     locationCode: input.locationCode,
     languageCode: input.languageCode,
     page: input.page,
@@ -161,7 +179,7 @@ export async function getPagesPage(
 
   const dataforseo = createDataforseoClient(billingCustomer);
   const response = await dataforseo.domain.relevantPages({
-    target: domain,
+    target: target.hostname,
     locationCode: input.locationCode,
     languageCode: input.languageCode,
     limit: input.pageSize,
@@ -178,13 +196,15 @@ export async function getPagesPage(
     );
 
   const totalCount = response.totalCount;
-  const hasMore =
-    totalCount != null
-      ? offset + pages.length < totalCount
-      : pages.length === input.pageSize;
+  const hasMore = computeHasMore(
+    offset,
+    response.items.length,
+    totalCount,
+    input.pageSize,
+  );
 
   const result: DomainPagesPageResult = {
-    domain,
+    domain: target.hostname,
     page: input.page,
     pageSize: input.pageSize,
     totalCount,
@@ -193,10 +213,14 @@ export async function getPagesPage(
     fetchedAt: new Date().toISOString(),
   };
 
-  void setCached(cacheKey, result, DOMAIN_PAGES_PAGE_TTL_SECONDS).catch(
-    (error) => {
-      console.error("domain.pages-page.cache-write failed:", error);
-    },
+  // waitUntil, not void: workerd cancels unregistered pending I/O once the
+  // response is sent, so a fire-and-forget put never persists the cache.
+  waitUntil(
+    setCached(cacheKey, result, DOMAIN_PAGES_PAGE_TTL_SECONDS).catch(
+      (error) => {
+        console.error("domain.pages-page.cache-write failed:", error);
+      },
+    ),
   );
 
   return result;

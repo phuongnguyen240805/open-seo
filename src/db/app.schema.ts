@@ -1,9 +1,11 @@
+/* eslint-disable max-lines -- application table declarations */
 import {
   sqliteTable,
   text,
   integer,
   real,
   uniqueIndex,
+  primaryKey,
   index,
 } from "drizzle-orm/sqlite-core";
 import { sql } from "drizzle-orm";
@@ -40,6 +42,19 @@ export const userOnboardingAnswers = sqliteTable(
   ],
 );
 
+// The paid-social ad (utm_medium=paid_social) a hosted signup came from, read
+// from the UTM tags the marketing site carries onto the sign-up link.
+// Campaign-level tags only: no click ids or other per-person ad identifiers.
+// No row = not from a paid-social ad.
+export const userSignupCampaigns = sqliteTable("user_signup_campaigns", {
+  userId: text("user_id")
+    .primaryKey()
+    .references(() => user.id, { onDelete: "cascade" }),
+  utmSource: text("utm_source"),
+  utmCampaign: text("utm_campaign"),
+  utmContent: text("utm_content"),
+});
+
 // Projects for keyword research
 export const projects = sqliteTable(
   "projects",
@@ -60,6 +75,12 @@ export const projects = sqliteTable(
     // Soft delete: archived projects are hidden everywhere but their data
     // (keywords, rank tracking, audits) is preserved.
     archivedAt: text("archived_at"),
+    // The Prompt Research keywords from AI visibility setup, one
+    // per line, most important first. Null until setup runs.
+    aiResearchKeywords: text("ai_research_keywords"),
+    // The IndexNow key the site hosts at /{key}.txt. Public by design, so it
+    // is stored as plain text. Null until IndexNow is first used.
+    indexnowKey: text("indexnow_key"),
   },
   (table) => [
     // Only the auto-created Default/null-domain project is a singleton. This
@@ -71,6 +92,11 @@ export const projects = sqliteTable(
       .where(
         sql`${table.name} = 'Default' AND ${table.domain} IS NULL AND ${table.archivedAt} IS NULL`,
       ),
+    // Every project listing filters by organization; the partial-unique index
+    // above only covers the Default-project row, so without this the org-scoped
+    // list queries seq-scan. Per-org row counts are small, so the archived/
+    // created_at ordering sorts cheaply on top of this single-column lookup.
+    index("projects_organization_id_idx").on(table.organizationId),
   ],
 );
 
@@ -149,7 +175,8 @@ export const savedKeywordTagAssignments = sqliteTable(
       table.savedKeywordId,
       table.tagId,
     ),
-    index("saved_keyword_tag_assignments_keyword_idx").on(table.savedKeywordId),
+    // No standalone index on savedKeywordId — the unique index above has it as
+    // its leftmost column, so it already serves savedKeywordId lookups.
     index("saved_keyword_tag_assignments_tag_idx").on(table.tagId),
   ],
 );
@@ -197,7 +224,8 @@ export const keywordMetrics = sqliteTable(
 // Rank Tracking tables
 // ============================================================================
 
-// One configuration per project+domain — defines what domain to track and how
+// One configuration per project+domain+location+language — defines what domain
+// to track and how
 export const rankTrackingConfigs = sqliteTable(
   "rank_tracking_configs",
   {
@@ -219,6 +247,7 @@ export const rankTrackingConfigs = sqliteTable(
     })
       .notNull()
       .default("weekly"),
+    locationName: text("location_name"),
     isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
     lastCheckedAt: text("last_checked_at"),
     nextCheckAt: text("next_check_at"),
@@ -228,11 +257,23 @@ export const rankTrackingConfigs = sqliteTable(
       .default(sql`(current_timestamp)`),
   },
   (table) => [
-    uniqueIndex("rank_tracking_configs_project_domain_location_idx").on(
+    index("rank_tracking_configs_project_active_created_idx").on(
       table.projectId,
-      table.domain,
-      table.locationCode,
+      table.isActive,
+      table.createdAt,
     ),
+    uniqueIndex("rank_tracking_configs_national_idx")
+      .on(table.projectId, table.domain, table.locationCode, table.languageCode)
+      .where(sql`${table.locationName} IS NULL`),
+    uniqueIndex("rank_tracking_configs_local_idx")
+      .on(
+        table.projectId,
+        table.domain,
+        table.locationCode,
+        table.languageCode,
+        table.locationName,
+      )
+      .where(sql`${table.locationName} IS NOT NULL`),
   ],
 );
 
@@ -245,10 +286,19 @@ export const rankTrackingKeywords = sqliteTable(
       .notNull()
       .references(() => rankTrackingConfigs.id, { onDelete: "cascade" }),
     keyword: text("keyword").notNull(),
+    // Keywords are lowercased on add unless this is set, in which case the
+    // keyword is stored and searched exactly as typed. Google can return a
+    // different SERP for "Nodex" than for "nodex".
+    matchCase: integer("match_case", { mode: "boolean" })
+      .notNull()
+      .default(false),
     searchVolume: integer("search_volume"),
     keywordDifficulty: integer("keyword_difficulty"),
     cpc: real("cpc"),
     metricsFetchedAt: text("metrics_fetched_at"),
+    // Set when a user pins the keyword to the top of the tracker's table.
+    // Pins are shared by everyone in the project.
+    pinnedAt: text("pinned_at"),
     createdAt: text("created_at")
       .notNull()
       .default(sql`(current_timestamp)`),
@@ -323,7 +373,8 @@ export const rankSnapshots = sqliteTable(
       .default(sql`(current_timestamp)`),
   },
   (table) => [
-    index("rank_snapshots_run_idx").on(table.runId),
+    // No standalone index on runId — the unique index below has it as its
+    // leftmost column, so it already serves runId lookups.
     index("rank_snapshots_keyword_device_idx").on(
       table.trackingKeywordId,
       table.device,
@@ -337,122 +388,127 @@ export const rankSnapshots = sqliteTable(
   ],
 );
 
-// ============================================================================
-// Site Audit tables
-// ============================================================================
+// Dashboard activation milestones. Organization-scoped: MCP OAuth grants are
+// user-level, so any member connecting an external MCP client satisfies the
+// milestone for the whole organization. Timestamps are first-occurrence only
+// and never move once set.
+export const organizationActivationState = sqliteTable(
+  "organization_activation_state",
+  {
+    organizationId: text("organization_id")
+      .primaryKey()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    firstMcpAuthorizedAt: text("first_mcp_authorized_at"),
+    firstMcpToolCallAt: text("first_mcp_tool_call_at"),
+    updatedAt: text("updated_at")
+      .notNull()
+      .default(sql`(current_timestamp)`),
+  },
+);
 
-// One row per audit run
-export const audits = sqliteTable(
-  "audits",
+// Per-project state for the dashboard's onboarding checklist. Most steps
+// complete via real product state (audits, teammates, MCP activation). The
+// competitor and keyword steps record the first domain overview or keyword
+// research run on the project, from the app or an agent; the column names
+// predate that. The checklist counts a step done on any of the workspace's
+// projects.
+export const projectActivationState = sqliteTable("project_activation_state", {
+  projectId: text("project_id")
+    .primaryKey()
+    .references(() => projects.id, { onDelete: "cascade" }),
+  competitorResearchedAt: text("competitor_step_clicked_at"),
+  keywordResearchedAt: text("keyword_step_clicked_at"),
+  // "I already connected" on the MCP card: hides the card for this project
+  // without faking the org-level first-tool-call milestone, which stays
+  // truthful and self-heals when a real external call lands.
+  mcpCardDismissedAt: text("mcp_card_dismissed_at"),
+  // Optional integration pitch: hiding it from the dashboard does not remove
+  // the GA4 connection controls from Project Settings.
+  ga4CardDismissedAt: text("ga4_card_dismissed_at"),
+  updatedAt: text("updated_at")
+    .notNull()
+    .default(sql`(current_timestamp)`),
+});
+
+// Retained backlink profile history. The dashboard no longer writes snapshots.
+// Each row keeps its original domain when the project website changes.
+export const backlinkSnapshots = sqliteTable(
+  "backlink_snapshots",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    domain: text("domain").notNull(),
+    rank: integer("rank"),
+    backlinks: integer("backlinks"),
+    referringDomains: integer("referring_domains"),
+    brokenBacklinks: integer("broken_backlinks"),
+    newBacklinks: integer("new_backlinks"),
+    lostBacklinks: integer("lost_backlinks"),
+    newReferringDomains: integer("new_referring_domains"),
+    lostReferringDomains: integer("lost_referring_domains"),
+    capturedAt: text("captured_at")
+      .notNull()
+      .default(sql`(current_timestamp)`),
+  },
+  (table) => [
+    index("backlink_snapshots_project_captured_idx").on(
+      table.projectId,
+      table.capturedAt,
+    ),
+  ],
+);
+
+// Personal checklist preferences; completion remains derived from product state.
+export const dashboardStepDismissals = sqliteTable(
+  "dashboard_step_dismissals",
+  {
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    step: text("step").notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.projectId, table.step] }),
+    index("dashboard_step_dismissals_project_idx").on(table.projectId),
+  ],
+);
+
+// Crawler-access credentials for one host (currently only Shopify's
+// domain-scoped crawler signature). Stored on the project (website) it was
+// added for; an audit looks across the organization's projects, so a second
+// project auditing the same store still picks it up. The signature values are
+// encrypted, and never returned to the client.
+export const crawlerCredentials = sqliteTable(
+  "crawler_credentials",
   {
     id: text("id").primaryKey(),
     projectId: text("project_id")
       .notNull()
       .references(() => projects.id, { onDelete: "cascade" }),
-    startedByUserId: text("started_by_user_id").notNull(),
-    startUrl: text("start_url").notNull(),
-    status: text("status", {
-      enum: ["running", "completed", "failed"],
-    })
-      .notNull()
-      .default("running"),
-    workflowInstanceId: text("workflow_instance_id"),
-    // JSON config: { maxPages, lighthouseStrategy }
-    config: text("config").notNull().default("{}"),
-    // Progress & summary
-    pagesCrawled: integer("pages_crawled").notNull().default(0),
-    pagesTotal: integer("pages_total").notNull().default(0),
-    lighthouseTotal: integer("lighthouse_total").notNull().default(0),
-    lighthouseCompleted: integer("lighthouse_completed").notNull().default(0),
-    lighthouseFailed: integer("lighthouse_failed").notNull().default(0),
-    currentPhase: text("current_phase").default("discovery"),
-    startedAt: text("started_at")
+    // Normalized lowercase hostname, e.g. "www.store.com".
+    host: text("host").notNull(),
+    provider: text("provider", { enum: ["shopify"] }).notNull(),
+    signatureInput: text("signature_input").notNull(),
+    signature: text("signature").notNull(),
+    // Parsed from the RFC 9421 `expires=` parameter when present; null when
+    // the signature input carries no expiry.
+    expiresAt: text("expires_at"),
+    createdByUserId: text("created_by_user_id"),
+    createdAt: text("created_at")
       .notNull()
       .default(sql`(current_timestamp)`),
-    completedAt: text("completed_at"),
   },
   (table) => [
-    index("audits_project_id_idx").on(table.projectId),
-    index("audits_started_by_user_id_idx").on(table.startedByUserId),
+    uniqueIndex("crawler_credentials_project_host_idx").on(
+      table.projectId,
+      table.host,
+    ),
   ],
 );
 
-// One row per crawled page
-export const auditPages = sqliteTable(
-  "audit_pages",
-  {
-    id: text("id").primaryKey(),
-    auditId: text("audit_id")
-      .notNull()
-      .references(() => audits.id, { onDelete: "cascade" }),
-    url: text("url").notNull(),
-    statusCode: integer("status_code"),
-    redirectUrl: text("redirect_url"),
-    // Metadata
-    title: text("title"),
-    metaDescription: text("meta_description"),
-    canonicalUrl: text("canonical_url"),
-    robotsMeta: text("robots_meta"),
-    // Open Graph
-    ogTitle: text("og_title"),
-    ogDescription: text("og_description"),
-    ogImage: text("og_image"),
-    // Headings
-    h1Count: integer("h1_count").notNull().default(0),
-    h2Count: integer("h2_count").notNull().default(0),
-    h3Count: integer("h3_count").notNull().default(0),
-    h4Count: integer("h4_count").notNull().default(0),
-    h5Count: integer("h5_count").notNull().default(0),
-    h6Count: integer("h6_count").notNull().default(0),
-    headingOrderJson: text("heading_order_json"),
-    // Content
-    wordCount: integer("word_count").notNull().default(0),
-    // Images
-    imagesTotal: integer("images_total").notNull().default(0),
-    imagesMissingAlt: integer("images_missing_alt").notNull().default(0),
-    imagesJson: text("images_json"),
-    // Links
-    internalLinkCount: integer("internal_link_count").notNull().default(0),
-    externalLinkCount: integer("external_link_count").notNull().default(0),
-    // Structured data
-    hasStructuredData: integer("has_structured_data", { mode: "boolean" })
-      .notNull()
-      .default(false),
-    // Hreflang
-    hreflangTagsJson: text("hreflang_tags_json"),
-    // Indexability
-    isIndexable: integer("is_indexable", { mode: "boolean" })
-      .notNull()
-      .default(true),
-    // Performance
-    responseTimeMs: integer("response_time_ms"),
-  },
-  (table) => [index("audit_pages_audit_id_idx").on(table.auditId)],
-);
-
-// One row per Lighthouse test (mobile + desktop per page).
-export const auditLighthouseResults = sqliteTable(
-  "audit_lighthouse_results",
-  {
-    id: text("id").primaryKey(),
-    auditId: text("audit_id")
-      .notNull()
-      .references(() => audits.id, { onDelete: "cascade" }),
-    pageId: text("page_id")
-      .notNull()
-      .references(() => auditPages.id, { onDelete: "cascade" }),
-    strategy: text("strategy", { enum: ["mobile", "desktop"] }).notNull(),
-    performanceScore: integer("performance_score"),
-    accessibilityScore: integer("accessibility_score"),
-    bestPracticesScore: integer("best_practices_score"),
-    seoScore: integer("seo_score"),
-    lcpMs: real("lcp_ms"),
-    cls: real("cls"),
-    inpMs: real("inp_ms"),
-    ttfbMs: real("ttfb_ms"),
-    errorMessage: text("error_message"),
-    r2Key: text("r2_key"),
-    payloadSizeBytes: integer("payload_size_bytes"),
-  },
-  (table) => [index("audit_lighthouse_results_audit_id_idx").on(table.auditId)],
-);
+export { dataRefreshClaims } from "./dashboard.schema";

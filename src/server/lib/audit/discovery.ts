@@ -3,14 +3,33 @@
  */
 import robotsParser from "robots-parser";
 import { XMLParser } from "fast-xml-parser";
+import { readBodyCapped } from "./html-response";
 import { isSameOrigin, normalizeUrl } from "./url-utils";
+import { isCrawlableUrl } from "./url-policy";
+import { publicFetch } from "@/server/lib/public-fetch";
+import { createRateLimitWait, type RateLimitWait } from "./crawl-throttle";
+import type { CrawlerAccess } from "@/shared/crawler-access";
+import {
+  auditRequestHeaders,
+  CRAWL_USER_AGENT,
+} from "@/server/lib/audit/web-bot-auth";
 
 const SITEMAP_FETCH_TIMEOUT_MS = 15_000;
+// robots.txt is checkpointed as durable Workflow step state (~1MiB cap, shared
+// with the rest of the step's return). RFC 9309 requires parsers to handle at
+// least 500 KiB and permits ignoring anything beyond it — Google does exactly
+// that — so this cap matches standard crawler behavior while keeping a
+// misbehaving server (e.g. HTML at /robots.txt) from blowing the step limit.
+const MAX_ROBOTS_TXT_BYTES = 500 * 1024;
 const MAX_SITEMAP_DEPTH = 3;
 const MAX_SITEMAP_DOCS = 300;
 const SITEMAP_CONCURRENCY = 5;
 const SITEMAP_RETRIES = 1;
-
+// Sitemap shards can legally reach 50 MB and SITEMAP_CONCURRENCY of them are
+// read at once, so unbounded reads can exhaust Worker memory. Oversized
+// shards are skipped whole — truncated XML would not parse anyway, and real
+// generators shard far below this.
+const MAX_SITEMAP_BYTES = 10 * 1024 * 1024;
 const xmlParser = new XMLParser({
   ignoreAttributes: false,
   isArray: (name) => name === "sitemap" || name === "url",
@@ -22,39 +41,90 @@ export interface RobotsResult {
 }
 
 /**
- * Fetch and parse robots.txt for a given origin.
- * Returns a helper to check if URLs are allowed + discovered sitemap URLs.
+ * Fetch the raw robots.txt body (null = missing/unreachable). Kept separate
+ * from parsing so Workflows can checkpoint the text as durable step state and
+ * re-derive the parsed result deterministically on replay.
  */
-export async function fetchRobotsTxt(origin: string): Promise<RobotsResult> {
-  const robotsUrl = `${origin}/robots.txt`;
+async function fetchRobotsTxtText(
+  origin: string,
+  access: CrawlerAccess | null | undefined,
+  waitForRateLimit: RateLimitWait,
+): Promise<string | null> {
   try {
-    const response = await fetch(robotsUrl, {
-      headers: { "User-Agent": "OpenSEO-Audit/1.0" },
-      signal: AbortSignal.timeout(10_000),
-    });
-
-    if (!response.ok) {
-      // No robots.txt = everything allowed
-      return {
-        isAllowed: () => true,
-        sitemapUrls: [],
-      };
+    const fetchRobots = () =>
+      fetchFollowingRedirects(`${origin}/robots.txt`, 10_000, access);
+    let fetched = await fetchRobots();
+    if (
+      fetched?.response.status === 429 &&
+      (await waitForRateLimit(fetched.response))
+    ) {
+      fetched = await fetchRobots();
     }
-
-    const text = await response.text();
-    const robots = robotsParser(robotsUrl, text);
-
-    return {
-      isAllowed: (url: string) => robots.isAllowed(url) ?? true,
-      sitemapUrls: robots.getSitemaps(),
-    };
+    if (!fetched?.response.ok) return null;
+    return (await fetched.response.text()).slice(0, MAX_ROBOTS_TXT_BYTES);
   } catch (error) {
     console.warn("Failed to fetch robots.txt:", error);
-    return {
-      isAllowed: () => true,
-      sitemapUrls: [],
-    };
+    return null;
   }
+}
+
+const MAX_DISCOVERY_REDIRECT_HOPS = 5;
+
+/**
+ * Redirects are followed by hand so each hop is revalidated against the crawl
+ * policy and crawler-access headers — bot-protection credentials — are
+ * re-matched against the hop's host instead of riding along to another site.
+ */
+async function fetchFollowingRedirects(
+  url: string,
+  timeoutMs: number,
+  access: CrawlerAccess | null | undefined,
+): Promise<{ response: Response; finalUrl: string } | null> {
+  // One budget for the whole chain, as the automatic follow had.
+  const deadline = Date.now() + timeoutMs;
+  let current = url;
+  for (let hop = 0; hop <= MAX_DISCOVERY_REDIRECT_HOPS; hop++) {
+    const response = await publicFetch(current, {
+      headers: await auditRequestHeaders(current, access),
+      redirect: "manual",
+      signal: AbortSignal.timeout(Math.max(1, deadline - Date.now())),
+    });
+
+    if (response.status < 300 || response.status >= 400) {
+      return { response, finalUrl: current };
+    }
+
+    const location = response.headers.get("location");
+    await response.body?.cancel();
+    if (!location) return null;
+
+    let next: string;
+    try {
+      next = new URL(location, current).toString();
+    } catch {
+      return null;
+    }
+    if (!isCrawlableUrl(next)) return null;
+    current = next;
+  }
+  return null;
+}
+
+/** Deterministic: same text in, same result out. Null = everything allowed. */
+export function parseRobotsTxt(
+  origin: string,
+  text: string | null,
+): RobotsResult {
+  if (text === null) {
+    return { isAllowed: () => true, sitemapUrls: [] };
+  }
+
+  const robots = robotsParser(`${origin}/robots.txt`, text);
+  return {
+    // Our UA so an `OpenSEO-Audit` group wins over `*`.
+    isAllowed: (url: string) => robots.isAllowed(url, CRAWL_USER_AGENT) ?? true,
+    sitemapUrls: robots.getSitemaps(),
+  };
 }
 
 /**
@@ -119,7 +189,11 @@ function isTimeoutError(error: unknown): boolean {
   return "name" in error && error.name === "TimeoutError";
 }
 
-async function fetchSitemapDocumentWithRetry(sitemapUrl: string): Promise<{
+async function fetchSitemapDocumentWithRetry(
+  sitemapUrl: string,
+  access: CrawlerAccess | null | undefined,
+  waitForRateLimit: RateLimitWait,
+): Promise<{
   nestedSitemaps: string[];
   pageUrls: string[];
   timedOut: boolean;
@@ -133,22 +207,37 @@ async function fetchSitemapDocumentWithRetry(sitemapUrl: string): Promise<{
 
   for (let attempt = 0; attempt <= SITEMAP_RETRIES; attempt++) {
     try {
-      const response = await fetch(normalizedSitemapUrl, {
-        headers: { "User-Agent": "OpenSEO-Audit/1.0" },
-        signal: AbortSignal.timeout(SITEMAP_FETCH_TIMEOUT_MS),
-      });
+      const fetched = await fetchFollowingRedirects(
+        normalizedSitemapUrl,
+        SITEMAP_FETCH_TIMEOUT_MS,
+        access,
+      );
+      if (!fetched) {
+        return { nestedSitemaps: [], pageUrls: [], timedOut: false };
+      }
+      const { response } = fetched;
 
-      const finalUrl = normalizeUrl(response.url, normalizedSitemapUrl);
+      const finalUrl = normalizeUrl(fetched.finalUrl, normalizedSitemapUrl);
       if (!finalUrl || !isSameOrigin(finalUrl, normalizedSitemapUrl)) {
         return { nestedSitemaps: [], pageUrls: [], timedOut: false };
       }
 
+      if (
+        response.status === 429 &&
+        attempt < SITEMAP_RETRIES &&
+        (await waitForRateLimit(response))
+      ) {
+        continue;
+      }
       if (!response.ok) {
         return { nestedSitemaps: [], pageUrls: [], timedOut: false };
       }
 
-      const body = await response.text();
-      if (!isProbablySitemapXml(response.headers.get("content-type"), body)) {
+      const body = await readBodyCapped(response, MAX_SITEMAP_BYTES);
+      if (
+        body === null ||
+        !isProbablySitemapXml(response.headers.get("content-type"), body)
+      ) {
         return { nestedSitemaps: [], pageUrls: [], timedOut: false };
       }
 
@@ -184,8 +273,11 @@ async function fetchSitemapDocumentWithRetry(sitemapUrl: string): Promise<{
 export async function discoverUrls(
   origin: string,
   maxPages = 50,
-): Promise<{ urls: string[]; robots: RobotsResult; sitemapUrls: Set<string> }> {
-  const robots = await fetchRobotsTxt(origin);
+  access?: CrawlerAccess | null,
+): Promise<{ urls: string[]; robotsText: string | null }> {
+  const waitForRateLimit = createRateLimitWait();
+  const robotsText = await fetchRobotsTxtText(origin, access, waitForRateLimit);
+  const robots = parseRobotsTxt(origin, robotsText);
 
   // Collect sitemap URLs: from robots.txt + default location
   const sitemapSources = new Set(robots.sitemapUrls);
@@ -226,7 +318,11 @@ export async function discoverUrls(
         seenSitemapDocs.add(normalizedUrl);
         fetchedDocs += 1;
 
-        const result = await fetchSitemapDocumentWithRetry(normalizedUrl);
+        const result = await fetchSitemapDocumentWithRetry(
+          normalizedUrl,
+          access,
+          waitForRateLimit,
+        );
         if (
           result.pageUrls.length === 0 &&
           result.nestedSitemaps.length === 0
@@ -262,9 +358,15 @@ export async function discoverUrls(
     );
   }
 
+  // Every discovered URL is returned, not just the first maxPages. Seeding is
+  // also what records each page's in-sitemap flag on the frontier, so
+  // truncating here made every sitemap URL past the budget report
+  // inSitemap: false once the crawl reached it through a link. The set is
+  // already bounded by maxDiscoveredUrls, seeds go straight into the
+  // scratchpad DO rather than through durable step state, and the crawl still
+  // stops at maxPages.
   return {
     urls: Array.from(allUrls),
-    robots,
-    sitemapUrls: allUrls,
+    robotsText,
   };
 }

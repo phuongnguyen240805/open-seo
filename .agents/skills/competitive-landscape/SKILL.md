@@ -18,6 +18,19 @@ Use this when the user wants a market-level view across several competitors. For
 - Optional known competitors
 - Optional location/language
 
+## Project context
+
+The project-context tools are free and shared with the app and other agents.
+
+1. Call `get_project_context` first and ground the market read in it — the saved competitors are the starting roster, and the business and positioning decide who counts as a competitor.
+2. This skill needs competitors. If none are saved, run a minimal inline setup: ask the user who they compete with, or infer a shortlist from `find_serp_competitors` and the site and confirm it, write it back with `update_project_context` (`addCompetitors`), then continue the landscape work. Never front-load the full interview; suggest `seo-project-setup` at the end for the rest.
+3. Before spending credits, check the research log. If the same research ran within the last 30 days, reuse that result and say so instead of re-buying it.
+4. On finish, write back what is durable with `update_project_context` — every confirmed competitor via `addCompetitors` with a short note on why they matter, plus `removeCompetitors` for entries you added that turned out irrelevant (leave rows the user added alone) — and append a research log entry: `{ appendResearchLog: { summary: "Competitive landscape: <market/query set>. Verdict: <conclusion>" } }`.
+
+## Deliver as a report
+
+Deliver through the `seo-report` skill, saving with `skill: "competitive-landscape"`. If that skill is not available, say so and stop before writing HTML.
+
 ## OpenSEO MCP tools
 
 - `research_keywords`: discover representative market queries.
@@ -52,24 +65,18 @@ Use this when the user wants a market-level view across several competitors. For
 
 ## Output format
 
-Start with the market read:
+`h1`: the market or category.
 
-- Market leaders
-- Most winnable opportunity area
-- Biggest barrier to ranking
+If a report template applies (see `seo-report`), its sections and tone replace this list.
 
-Then include:
+Sections in this order:
 
-| Domain | Type | Why they matter | Organic footprint | Winning themes | Weakness/gap |
-| ------ | ---- | --------------- | ----------------- | -------------- | ------------ |
-
-Add:
-
-- Query set used
-- Content formats that are working
-- Keyword/theme gaps
-- Backlink or authority observations
-- Recommended next workflows: competitor analysis, keyword clustering, or content brief
+1. **The market read** — one or two opening sentences naming the leaders, the most winnable area, and the biggest barrier.
+2. **Who is winning** — a table of domain, type, organic footprint, winning themes, and the gap. Label domain types explicitly.
+3. **Why they win** — one finding per pattern, the Fix pointing at what the user should do instead.
+4. **Gaps and openings** — a table of theme, demand, and who currently owns it, plus a bar chart when a handful of themes carry the demand.
+5. **What to do next** — an ordered list ending in the next workflow to run: competitor analysis, keyword clustering, or a content brief.
+6. **How this report was made** — opens with the skill link line from `seo-report`, pointing at `https://openseo.so/docs/skills/competitive-landscape` ("OpenSEO Competitive Landscape skill"), then the query set used, and a note calling the read directional when the query set was small.
 
 ## Guardrails
 

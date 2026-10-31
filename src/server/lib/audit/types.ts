@@ -3,18 +3,43 @@
  */
 
 import { z } from "zod";
+import type { PageFetchClass } from "@/shared/audit-fetch-class";
+import { MIN_AUDIT_PAGES, PAID_MAX_AUDIT_PAGES } from "@/shared/audit-limits";
 import { jsonCodec } from "@/shared/json";
 
-export type LighthouseStrategy = "auto" | "all" | "manual" | "none";
+export type LighthouseStrategy = "auto" | "none";
 
 export interface AuditConfig {
   maxPages: number;
   lighthouseStrategy: LighthouseStrategy;
+  renderJavaScript?: boolean;
+  /** Detected from the start URL's `powered-by` response header. */
+  sitePlatform?: "shopify";
+  /** Which crawler-access credential the crawl replayed, if any. */
+  crawlerCredentialId?: string;
 }
 
+// Read-side only (writes stringify a typed AuditConfig). Stored rows may hold
+// retired strategies ("all", "manual") from older audits; map them onto the
+// closest surviving strategy — and fall back to "auto" on anything unknown —
+// instead of failing the whole config parse and making the audit's results
+// unviewable.
+const lighthouseStrategySchema = z
+  .enum(["auto", "all", "manual", "none"])
+  .transform(
+    (value): LighthouseStrategy =>
+      value === "all" ? "auto" : value === "manual" ? "none" : value,
+  )
+  .catch("auto");
+
 const auditConfigSchema = z.object({
-  maxPages: z.number().int().min(10).max(10_000),
-  lighthouseStrategy: z.enum(["auto", "all", "manual", "none"]),
+  maxPages: z.number().int().min(MIN_AUDIT_PAGES).max(PAID_MAX_AUDIT_PAGES),
+  lighthouseStrategy: lighthouseStrategySchema,
+  renderJavaScript: z.boolean().optional().default(false),
+  // Absent on every audit stored before crawler access shipped, and a future
+  // platform value must not make an old report unviewable.
+  sitePlatform: z.literal("shopify").optional().catch(undefined),
+  crawlerCredentialId: z.string().optional().catch(undefined),
 });
 
 const auditConfigCodec = jsonCodec(auditConfigSchema);
@@ -25,7 +50,15 @@ export function parseAuditConfig(configRaw: string | null): AuditConfig | null {
   return result.success ? result.data : null;
 }
 
-/** Data extracted from a single page via cheerio. */
+/** One outgoing link edge, deduped by target URL within a page. */
+export interface PageLink {
+  targetUrl: string;
+  anchor: string | null;
+  isInternal: boolean;
+  isNofollow: boolean;
+}
+
+/** Data extracted from a single page's HTML. */
 export interface PageAnalysis {
   url: string;
   statusCode: number;
@@ -47,13 +80,15 @@ export interface PageAnalysis {
 
   // Content
   wordCount: number;
+  bodyText: string;
+  /** Conservative signal of an app shell, not proof of missing content. */
+  javascriptShell?: boolean;
 
   // Images
   images: Array<{ src: string | null; alt: string | null }>;
 
-  // Links (raw href values from the HTML)
-  internalLinks: string[];
-  externalLinks: string[];
+  // Links (normalized, deduped by target)
+  links: PageLink[];
 
   // Structured data
   hasStructuredData: boolean;
@@ -80,15 +115,23 @@ export interface LighthouseResult {
   payloadSizeBytes?: number | null;
 }
 
-export interface StepPageResult {
+/**
+ * Full result of crawling one page. Persisted to the app DB inside the
+ * crawl-chunk step; never accumulated in memory or returned as durable
+ * step state.
+ */
+export interface CrawledPageResult {
   id: string;
   url: string;
   statusCode: number;
+  fetchClass: PageFetchClass;
   redirectUrl: string | null;
   title: string;
   metaDescription: string;
   canonicalUrl: string | null;
   robotsMeta: string | null;
+  xRobotsTag: string | null;
+  headerCanonicalUrl: string | null;
   ogTitle: string | null;
   ogDescription: string | null;
   ogImage: string | null;
@@ -100,13 +143,36 @@ export interface StepPageResult {
   h6Count: number;
   headingOrder: number[];
   wordCount: number;
+  contentHash: string | null;
+  /**
+   * True when an HTML document was fetched and analyzed. Gates the content
+   * checks in page reporters (an empty-shell HTML page must still be
+   * checked; a PDF must not). Transient — not persisted.
+   */
+  isHtml: boolean;
+  /** App shell, rendered or not; transient signal for the per-page issue reporter. */
+  javascriptShell?: boolean;
+  /**
+   * HTML size read for this page (approximate; capped at MAX_HTML_BYTES).
+   * Transient — feeds the crawl window's memory-pressure signal, since
+   * response time is measured at headers and says nothing about body size.
+   */
+  htmlBytes: number;
+  /**
+   * True when a 429 was retried for this URL (whatever the retry returned).
+   * Not persisted — narrows the crawl window so the pages after it are
+   * fetched more slowly.
+   */
+  rateLimited: boolean;
   imagesTotal: number;
   imagesMissingAlt: number;
   images: Array<{ src: string | null; alt: string | null }>;
-  internalLinks: string[];
-  externalLinks: string[];
+  links: PageLink[];
   hasStructuredData: boolean;
   hreflangTags: string[];
   isIndexable: boolean;
   responseTimeMs: number;
+  /** null = not reached via links (e.g. sitemap-seeded). */
+  crawlDepth: number | null;
+  inSitemap: boolean;
 }

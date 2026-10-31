@@ -6,9 +6,11 @@ import {
   type KeywordFilterValues,
 } from "@/client/features/keywords/keywordResearchTypes";
 
-const STORAGE_KEY = "keyword-default-filters";
+function storageKey(projectId: string) {
+  return `keyword-default-filters:${projectId}`;
+}
 
-const filterValuesSchema = z.object({
+export const filterValuesSchema = z.object({
   include: z.string(),
   exclude: z.string(),
   minVol: z.string(),
@@ -17,11 +19,14 @@ const filterValuesSchema = z.object({
   maxCpc: z.string(),
   minKd: z.string(),
   maxKd: z.string(),
+  // Defaulted so filter blobs persisted before the intent filter existed still
+  // parse (missing key -> "") instead of discarding the user's saved filters.
+  intents: z.string().default(""),
 });
 
-function loadFiltersFromStorage(): KeywordFilterValues {
+function loadFiltersFromStorage(projectId: string): KeywordFilterValues {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(storageKey(projectId));
     if (!raw) return EMPTY_FILTERS;
     return filterValuesSchema.parse(JSON.parse(raw));
   } catch {
@@ -29,29 +34,29 @@ function loadFiltersFromStorage(): KeywordFilterValues {
   }
 }
 
-function saveFiltersToStorage(filters: KeywordFilterValues) {
+function saveFiltersToStorage(projectId: string, filters: KeywordFilterValues) {
   try {
     const hasAnyFilter = Object.values(filters).some((v) => v.trim() !== "");
     if (hasAnyFilter) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(filters));
+      localStorage.setItem(storageKey(projectId), JSON.stringify(filters));
     } else {
-      localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem(storageKey(projectId));
     }
   } catch {
     // storage full or unavailable
   }
 }
 
-export function useLocalKeywordFilters() {
+export function useLocalKeywordFilters(projectId: string) {
   const filtersForm = useForm({
-    defaultValues: loadFiltersFromStorage(),
+    defaultValues: loadFiltersFromStorage(projectId),
   });
 
   const values = useStore(filtersForm.store, (s) => s.values);
 
   useEffect(() => {
-    saveFiltersToStorage(values);
-  }, [values]);
+    saveFiltersToStorage(projectId, values);
+  }, [projectId, values]);
 
   const resetFilters = useCallback(() => {
     const keys: Array<keyof KeywordFilterValues> = [
@@ -63,6 +68,7 @@ export function useLocalKeywordFilters() {
       "maxCpc",
       "minKd",
       "maxKd",
+      "intents",
     ];
 
     for (const key of keys) {

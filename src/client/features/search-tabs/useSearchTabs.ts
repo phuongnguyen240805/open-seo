@@ -1,4 +1,13 @@
 import { useCallback, useMemo, useSyncExternalStore } from "react";
+import { z } from "zod";
+import {
+  researchScopeSchema,
+  type ResearchScope,
+} from "@/shared/researchScope";
+import {
+  promptExplorerModelSchema,
+  webSearchCountrySelectionSchema,
+} from "@/types/schemas/ai-search";
 import type { SearchTab, SearchTabInput } from "./types";
 
 type TabsState = {
@@ -11,11 +20,6 @@ type OpenTabInput = {
   input: SearchTabInput;
 };
 
-type OpenTabResult = {
-  tab: SearchTab | null;
-  dropped: boolean;
-};
-
 const EMPTY_STATE: TabsState = {
   tabs: [],
   activeTabId: null,
@@ -23,39 +27,79 @@ const EMPTY_STATE: TabsState = {
 
 const CHANGE_EVENT = "search-tabs-change";
 const stateCache = new Map<string, TabsState>();
-const SEARCH_TABS_LIMIT = 8;
+const SEARCH_TABS_LIMIT = 20;
+
+const promptTabInputSchema = z.object({
+  type: z.literal("prompt"),
+  prompt: z.string().min(1),
+  highlightBrand: z.string(),
+  models: z.array(promptExplorerModelSchema).min(1),
+  webSearch: z.boolean(),
+  webSearchCountryCode: webSearchCountrySelectionSchema,
+});
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
+}
+
+function toResearchScope(value: unknown): ResearchScope | null {
+  const parsed = researchScopeSchema.safeParse(value);
+  return parsed.success ? parsed.data : null;
 }
 
 function parseTabInput(value: unknown): SearchTabInput | null {
   if (!isRecord(value)) return null;
   if (value.type === "backlinks") {
     if (typeof value.target !== "string" || value.target === "") return null;
-    if (value.scope !== "domain" && value.scope !== "page") return null;
+    // Legacy backlinks tabs stored "page"; "domain" survives as a valid scope.
+    const scope =
+      value.scope === "page" ? "exact_url" : toResearchScope(value.scope);
+    if (!scope) return null;
     return {
       type: "backlinks",
       target: value.target,
-      scope: value.scope,
+      scope,
     };
   }
 
   if (value.type === "domain") {
     if (typeof value.domain !== "string" || value.domain === "") return null;
-    if (typeof value.subdomains !== "boolean") return null;
-    if (typeof value.locationCode !== "number") return null;
+    // locationCode is optional in DomainSearchTabInput: tabs opened at the
+    // default location persist no loc param, so accept a missing key.
+    if (
+      value.locationCode !== undefined &&
+      typeof value.locationCode !== "number"
+    ) {
+      return null;
+    }
+    // Legacy tabs stored an "include subdomains" boolean instead of a scope.
+    const scope =
+      toResearchScope(value.scope) ??
+      (typeof value.subdomains === "boolean"
+        ? value.subdomains
+          ? "subdomains"
+          : "domain"
+        : null);
+    if (!scope) return null;
     return {
       type: "domain",
       domain: value.domain,
-      subdomains: value.subdomains,
-      locationCode: value.locationCode,
+      scope,
+      locationCode:
+        typeof value.locationCode === "number" ? value.locationCode : undefined,
     };
   }
 
   if (value.type === "keyword") {
     if (typeof value.keyword !== "string" || value.keyword === "") return null;
-    if (typeof value.locationCode !== "number") return null;
+    // locationCode is optional in KeywordSearchTabInput: tabs opened at the
+    // default location persist no loc param, so accept a missing key.
+    if (
+      value.locationCode !== undefined &&
+      typeof value.locationCode !== "number"
+    ) {
+      return null;
+    }
     if (
       value.resultLimit !== 150 &&
       value.resultLimit !== 300 &&
@@ -74,12 +118,21 @@ function parseTabInput(value: unknown): SearchTabInput | null {
     return {
       type: "keyword",
       keyword: value.keyword,
-      locationCode: value.locationCode,
+      locationCode:
+        typeof value.locationCode === "number" ? value.locationCode : undefined,
+      locationName:
+        typeof value.locationName === "string" ? value.locationName : undefined,
       resultLimit: value.resultLimit,
       mode: value.mode,
       // Tabs persisted before the clickstream toggle existed default to off.
       clickstream: value.clickstream === true,
+      // Tabs persisted before per-search grouping existed default to off.
+      groupKeywords: value.groupKeywords === true,
     };
+  }
+
+  if (value.type === "prompt") {
+    return promptTabInputSchema.safeParse(value).data ?? null;
   }
 
   return null;
@@ -93,7 +146,8 @@ function tabInputKey(value: unknown): string {
   return JSON.stringify(value);
 }
 
-function parseStoredState(value: unknown): TabsState {
+// Exported for unit tests.
+export function parseStoredState(value: unknown): TabsState {
   if (!isRecord(value)) return EMPTY_STATE;
   if (!Array.isArray(value.tabs)) return EMPTY_STATE;
   const tabs = value.tabs
@@ -119,7 +173,8 @@ function parseStoredState(value: unknown): TabsState {
         },
       ];
     })
-    .slice(0, SEARCH_TABS_LIMIT);
+    // Keep the newest tabs when over the limit, matching openTab's eviction.
+    .slice(-SEARCH_TABS_LIMIT);
   const activeTabId =
     typeof value.activeTabId === "string" &&
     tabs.some((tab) => tab.id === value.activeTabId)
@@ -177,6 +232,16 @@ function subscribe(onChange: () => void) {
   return () => window.removeEventListener(CHANGE_EVENT, onChange);
 }
 
+// At capacity, evict the oldest tabs instead of refusing the new one.
+// Exported for unit tests.
+export function appendTabWithEviction(
+  tabs: SearchTab[],
+  next: SearchTab,
+): SearchTab[] {
+  const kept = tabs.slice(Math.max(0, tabs.length - SEARCH_TABS_LIMIT + 1));
+  return [...kept, next];
+}
+
 function generateTabId(): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
     return crypto.randomUUID();
@@ -192,21 +257,14 @@ export function useSearchTabs(key: string) {
   );
 
   const openTab = useCallback(
-    ({ label, input }: OpenTabInput): OpenTabResult => {
-      let result: SearchTab | null = null;
-      let dropped = false;
+    ({ label, input }: OpenTabInput) => {
       update(key, (current) => {
         const inputKey = tabInputKey(input);
         const existing = current.tabs.find(
           (tab) => tabInputKey(tab.input) === inputKey,
         );
         if (existing) {
-          result = existing;
           return { ...current, activeTabId: existing.id };
-        }
-        if (current.tabs.length >= SEARCH_TABS_LIMIT) {
-          dropped = true;
-          return current;
         }
         const next: SearchTab = {
           id: generateTabId(),
@@ -215,13 +273,11 @@ export function useSearchTabs(key: string) {
           createdAt: Date.now(),
           viewedAt: null,
         };
-        result = next;
         return {
-          tabs: [...current.tabs, next],
+          tabs: appendTabWithEviction(current.tabs, next),
           activeTabId: next.id,
         };
       });
-      return { tab: result, dropped };
     },
     [key],
   );
@@ -255,7 +311,11 @@ export function useSearchTabs(key: string) {
         let activeTabId = current.activeTabId;
         if (current.activeTabId === tabId) {
           closedActive = true;
-          const neighbor = tabs[index - 1] ?? tabs[index] ?? null;
+          // Post-removal array: tabs[index] is the tab that slid into the
+          // closed tab's slot (its right-hand neighbor). Select it first —
+          // browser-tab convention and the documented e2e contract — and fall
+          // back to the left neighbor only when the last tab was closed.
+          const neighbor = tabs[index] ?? tabs[index - 1] ?? null;
           activeTabId = neighbor?.id ?? null;
           nextActiveTab = neighbor;
         }
@@ -293,12 +353,6 @@ export function useSearchTabs(key: string) {
     [state.tabs],
   );
 
-  const canOpenTab = useCallback(
-    (input: SearchTabInput) =>
-      Boolean(findMatchingTab(input)) || state.tabs.length < SEARCH_TABS_LIMIT,
-    [findMatchingTab, state.tabs.length],
-  );
-
   const activeTab = useMemo(
     () => state.tabs.find((tab) => tab.id === state.activeTabId) ?? null,
     [state.activeTabId, state.tabs],
@@ -308,10 +362,8 @@ export function useSearchTabs(key: string) {
     activeTab,
     activeTabId: state.activeTabId,
     tabs: state.tabs,
-    canOpenTab,
     closeTab,
     findMatchingTab,
-    limit: SEARCH_TABS_LIMIT,
     markTabViewed,
     openTab,
     setActiveTab,

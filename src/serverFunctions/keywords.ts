@@ -12,47 +12,51 @@ import {
   updateSavedKeywordTagsSchema,
 } from "@/types/schemas/keywords";
 import { KeywordResearchService } from "@/server/features/keywords/services/KeywordResearchService";
+import { recordResearchStep } from "@/server/features/activation/researchActivation";
 import { requireProjectContext } from "@/serverFunctions/middleware";
+import { resolveMarket } from "@/shared/keyword-locations";
 
 function shouldUseKeywordE2eFixtures() {
   return import.meta.env.VITE_E2E_KEYWORD_FIXTURES === "1";
 }
 
 async function getKeywordE2eFixtures() {
-  return import("../../e2e/fixtures/keyword-research-fixtures");
+  return import("../../tests/fixtures/keyword-research-fixtures");
 }
 
 export const researchKeywords = createServerFn({ method: "POST" })
   .middleware(requireProjectContext)
-  .inputValidator((data: unknown) => researchKeywordsSchema.parse(data))
+  .validator(researchKeywordsSchema)
   .handler(async ({ data, context }) => {
+    const input = {
+      ...data,
+      ...resolveMarket(data, context.project),
+      projectId: context.projectId,
+    };
     if (shouldUseKeywordE2eFixtures()) {
       const fixtures = await getKeywordE2eFixtures();
-      return fixtures.getKeywordResearchFixture(data);
+      return fixtures.getKeywordResearchFixture(input);
     }
 
-    return KeywordResearchService.research(
-      {
-        ...data,
-        projectId: context.projectId,
-      },
-      context,
-    );
+    const result = await KeywordResearchService.research(input, context);
+    await recordResearchStep(context.projectId, "keywords");
+    return result;
   });
 
 export const saveKeywords = createServerFn({ method: "POST" })
   .middleware(requireProjectContext)
-  .inputValidator((data: unknown) => saveKeywordsSchema.parse(data))
+  .validator(saveKeywordsSchema)
   .handler(async ({ data, context }) => {
     return KeywordResearchService.saveKeywords({
       ...data,
+      ...resolveMarket(data, context.project),
       projectId: context.projectId,
     });
   });
 
 export const getSavedKeywords = createServerFn({ method: "POST" })
   .middleware(requireProjectContext)
-  .inputValidator((data: unknown) => getSavedKeywordsSchema.parse(data))
+  .validator(getSavedKeywordsSchema)
   .handler(async ({ data, context }) => {
     return KeywordResearchService.getSavedKeywords({
       ...data,
@@ -62,7 +66,7 @@ export const getSavedKeywords = createServerFn({ method: "POST" })
 
 export const exportSavedKeywords = createServerFn({ method: "POST" })
   .middleware(requireProjectContext)
-  .inputValidator((data: unknown) => exportSavedKeywordsSchema.parse(data))
+  .validator(exportSavedKeywordsSchema)
   .handler(async ({ data, context }) => {
     return KeywordResearchService.exportSavedKeywords({
       ...data,
@@ -72,7 +76,7 @@ export const exportSavedKeywords = createServerFn({ method: "POST" })
 
 export const updateSavedKeywordTags = createServerFn({ method: "POST" })
   .middleware(requireProjectContext)
-  .inputValidator((data: unknown) => updateSavedKeywordTagsSchema.parse(data))
+  .validator(updateSavedKeywordTagsSchema)
   .handler(async ({ data, context }) => {
     return KeywordResearchService.updateSavedKeywordTags({
       ...data,
@@ -82,7 +86,7 @@ export const updateSavedKeywordTags = createServerFn({ method: "POST" })
 
 export const updateSavedKeywordTag = createServerFn({ method: "POST" })
   .middleware(requireProjectContext)
-  .inputValidator((data: unknown) => updateSavedKeywordTagSchema.parse(data))
+  .validator(updateSavedKeywordTagSchema)
   .handler(async ({ data, context }) => {
     return KeywordResearchService.updateSavedKeywordTag({
       ...data,
@@ -92,7 +96,7 @@ export const updateSavedKeywordTag = createServerFn({ method: "POST" })
 
 export const deleteSavedKeywordTag = createServerFn({ method: "POST" })
   .middleware(requireProjectContext)
-  .inputValidator((data: unknown) => deleteSavedKeywordTagSchema.parse(data))
+  .validator(deleteSavedKeywordTagSchema)
   .handler(async ({ data, context }) => {
     return KeywordResearchService.deleteSavedKeywordTag({
       ...data,
@@ -104,16 +108,14 @@ export const removeSavedKeywords = createServerFn({
   method: "POST",
 })
   .middleware(requireProjectContext)
-  .inputValidator((data: unknown) => removeSavedKeywordsSchema.parse(data))
+  .validator(removeSavedKeywordsSchema)
   .handler(async ({ data, context }) => {
     return KeywordResearchService.removeSavedKeywords(context.projectId, data);
   });
 
 export const refreshSavedKeywordMetrics = createServerFn({ method: "POST" })
   .middleware(requireProjectContext)
-  .inputValidator((data: unknown) =>
-    refreshSavedKeywordMetricsSchema.parse(data),
-  )
+  .validator(refreshSavedKeywordMetricsSchema)
   .handler(async ({ context }) => {
     return KeywordResearchService.refreshSavedKeywordMetrics(
       { projectId: context.projectId },
@@ -123,11 +125,12 @@ export const refreshSavedKeywordMetrics = createServerFn({ method: "POST" })
 
 export const getSerpAnalysis = createServerFn({ method: "POST" })
   .middleware(requireProjectContext)
-  .inputValidator((data: unknown) => serpAnalysisSchema.parse(data))
+  .validator(serpAnalysisSchema)
   .handler(async ({ data, context }) =>
     KeywordResearchService.getSerpAnalysis(
       {
         ...data,
+        ...resolveMarket(data, context.project),
         projectId: context.projectId,
       },
       context,

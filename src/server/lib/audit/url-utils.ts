@@ -8,7 +8,12 @@
  * - Strip fragments (#...)
  * - Sort query parameters
  * - Lowercase the hostname
- * - Remove trailing slash (except for root path "/")
+ * - Preserve trailing slashes. A trailing slash is the canonical form on most
+ *   CMS platforms (WordPress etc.), which 301-redirect the non-slash version to
+ *   it. Stripping it here would rewrite the canonical URL into its own redirect
+ *   source, so the crawler would follow /path -> /path/ and strip back to /path
+ *   forever — a 508 loop. Keeping /path and /path/ distinct lets the redirect
+ *   resolve normally.
  */
 export function normalizeUrl(url: string, base?: string): string | null {
   try {
@@ -28,15 +33,35 @@ export function normalizeUrl(url: string, base?: string): string | null {
     // Lowercase hostname
     parsed.hostname = parsed.hostname.toLowerCase();
 
-    // Remove trailing slash (but keep "/" for root)
-    let normalized = parsed.toString();
-    if (normalized.endsWith("/") && parsed.pathname !== "/") {
-      normalized = normalized.slice(0, -1);
-    }
-
-    return normalized;
+    return parsed.toString();
   } catch {
     return null;
+  }
+}
+
+/**
+ * A canonical key for URL equality checks that should survive the common
+ * redirect patterns a site uses to reach its canonical form:
+ *   - trailing-slash redirects   (/services -> /services/)
+ *   - www <-> non-www            (www.example.com -> example.com)
+ *   - http -> https upgrades
+ *
+ * Forces https, drops a leading "www.", lowercases the hostname, sorts query
+ * params, and strips the fragment. Trailing slashes are intentionally left
+ * intact so two genuinely different paths never collapse together; this key is
+ * only for "is this effectively the same page as the start URL" comparisons
+ * (e.g. picking the homepage for the Lighthouse sample), not for crawl dedup.
+ */
+export function canonicalUrlKey(url: string): string {
+  try {
+    const parsed = new URL(url);
+    parsed.protocol = "https:";
+    parsed.hostname = parsed.hostname.toLowerCase().replace(/^www\./, "");
+    parsed.hash = "";
+    parsed.searchParams.sort();
+    return parsed.toString();
+  } catch {
+    return url.toLowerCase();
   }
 }
 
@@ -130,4 +155,46 @@ export function detectUrlTemplate(pathname: string): string {
  */
 export function getOrigin(url: string): string {
   return new URL(url).origin;
+}
+
+/** Files a crawl can follow a link to but cannot audit as a page. */
+const NON_DOCUMENT_EXTENSIONS =
+  /\.(?:jpe?g|png|gif|webp|avif|svg|ico|bmp|tiff?|heic|woff2?|ttf|otf|eot|mp4|webm|m4v|mov|avi|mp3|wav|ogg|m4a|flac|css|js|mjs|json|xml|txt|map|zip|gz|tgz|tar|rar|7z|dmg|exe)$/i;
+
+/**
+ * Shopify routes that are never storefront pages and that its edge refuses to
+ * crawlers, with an optional locale prefix (`/en/`, `/pt-br/`). The cart,
+ * checkout and account routes need no entry: Shopify's robots.txt disallows
+ * them.
+ */
+const SHOPIFY_NON_PAGE_PATHS =
+  /^\/(?:[a-z]{2}(?:-[a-z]{2})?\/)?(?:customer_authentication\/|customer_identity\/|discount\/|password(?:\/|$))/i;
+
+/**
+ * Whether a same-origin URL is worth a page fetch. Links to images, fonts,
+ * scripts and other files pass the SSRF check but are not pages: Shopify
+ * themes link every gallery photo on the storefront origin, and one store's
+ * audit spent 1,986 of its 2,608 fetches on them. Unknown extensions pass.
+ * The trade: a broken link to such a file is no longer reported.
+ *
+ * Cloudflare's reserved `/cdn-cgi/` paths are skipped too. Its email
+ * obfuscation rewrites every mailto link to `/cdn-cgi/l/email-protection`,
+ * which answers crawlers with a 404, so a site with an email in its footer
+ * got one false broken link per page.
+ */
+export function isAuditablePageUrl(
+  url: string,
+  sitePlatform?: "shopify",
+): boolean {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return false;
+  }
+  if (NON_DOCUMENT_EXTENSIONS.test(parsed.pathname)) return false;
+  if (parsed.pathname.startsWith("/cdn-cgi/")) return false;
+  return !(
+    sitePlatform === "shopify" && SHOPIFY_NON_PAGE_PATHS.test(parsed.pathname)
+  );
 }

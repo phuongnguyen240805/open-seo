@@ -1,26 +1,41 @@
 import { z } from "zod";
 import { DomainService } from "@/server/features/domain/services/DomainService";
+import { recordResearchStep } from "@/server/features/activation/researchActivation";
 import { mcpResponse } from "@/server/mcp/formatters";
 import { buildProjectMeta } from "@/server/mcp/context";
 import { optionalMetaOutputSchema } from "@/server/mcp/output-schemas";
 import { withMcpProjectAuth } from "@/server/mcp/project-auth";
+import { resolveLabsMarket } from "@/shared/keyword-locations";
 import {
-  DEFAULT_LANGUAGE_CODE,
-  DEFAULT_LOCATION_CODE,
   assertLabsLocationCode,
+  assertLanguageForLocation,
+} from "@/server/lib/market";
+import {
   languageCodeSchema,
   locationCodeSchema,
   projectIdSchema,
 } from "@/server/mcp/schemas";
+import {
+  RESEARCH_SCOPE_PARAM_DESCRIPTION,
+  researchScopeSchema,
+} from "@/shared/researchScope";
 
 const inputSchema = {
   projectId: projectIdSchema,
-  domain: z.string().min(1).describe("Domain to analyze (e.g. 'example.com')."),
+  domain: z
+    .string()
+    .min(1)
+    .max(2048)
+    .describe("Domain or URL to analyze (e.g. 'example.com')."),
+  scope: researchScopeSchema
+    .optional()
+    .describe(
+      `${RESEARCH_SCOPE_PARAM_DESCRIPTION} Overview metrics always cover the hostname plus subdomains; narrower scopes are labeled accordingly — use get_ranked_keywords with a scope for scoped keyword data.`,
+    ),
   includeSubdomains: z
     .boolean()
     .optional()
-    .default(false)
-    .describe("Include subdomains in the domain's metrics. Defaults to false."),
+    .describe("Deprecated: use scope ('subdomains' or 'domain') instead."),
   locationCode: locationCodeSchema.optional(),
   languageCode: languageCodeSchema.optional(),
 } as const;
@@ -37,6 +52,8 @@ export const getDomainOverviewTool = {
     outputSchema: z
       .object({
         domain: z.string().optional(),
+        scope: researchScopeSchema.optional(),
+        displayTarget: z.string().optional(),
         organicTraffic: z.number().nullable().optional(),
         organicKeywords: z.number().nullable().optional(),
         backlinks: z.number().nullable().optional(),
@@ -46,28 +63,46 @@ export const getDomainOverviewTool = {
       .passthrough(),
     annotations: {
       readOnlyHint: false,
-      openWorldHint: false,
+      openWorldHint: true,
       destructiveHint: false,
     },
   },
   handler: withMcpProjectAuth(async (args: Args, context) => {
-    assertLabsLocationCode(args.locationCode);
+    const { locationCode, languageCode } = resolveLabsMarket(
+      args,
+      context.project,
+    );
+    assertLabsLocationCode(locationCode);
+    assertLanguageForLocation(locationCode, languageCode);
+    const scope =
+      args.scope ??
+      (args.includeSubdomains == null
+        ? undefined
+        : args.includeSubdomains
+          ? "subdomains"
+          : "domain");
     const result = await DomainService.getOverview(
       {
         projectId: args.projectId,
         domain: args.domain,
-        includeSubdomains: args.includeSubdomains,
-        locationCode: args.locationCode ?? DEFAULT_LOCATION_CODE,
-        languageCode: args.languageCode ?? DEFAULT_LANGUAGE_CODE,
+        scope,
+        locationCode,
+        languageCode,
       },
       context.billing,
     );
+    await recordResearchStep(args.projectId, "competitor");
     const text = [
-      `Domain: ${result.domain}`,
+      `Target: ${result.displayTarget} (scope: ${result.scope})`,
       `Organic traffic: ${result.organicTraffic ?? "?"}`,
       `Organic keywords: ${result.organicKeywords ?? "?"}`,
       `Backlinks: ${result.backlinks ?? "?"}`,
       `Referring domains: ${result.referringDomains ?? "?"}`,
+      ...(result.scope === "subdomains"
+        ? []
+        : [
+            "Note: overview metrics cover the whole domain including subdomains; use get_ranked_keywords with this scope for scoped keyword data.",
+          ]),
     ].join("\n");
     return mcpResponse({
       text,

@@ -1,15 +1,18 @@
 import { z } from "zod";
+import { mcpMetaOutputSchema } from "@/shared/mcp-contracts";
 
-const mcpMetaOutputSchema = z
-  .object({
-    url: z.string().optional(),
-    organizationId: z.string().optional(),
-    projectId: z.string().optional(),
-    runId: z.string().optional(),
-    creditsCharged: z.number().optional(),
-    creditsRemaining: z.number().optional(),
-  })
-  .passthrough();
+// Tools author schemas as either a raw Zod shape (most tools) or a full
+// z.object (the GA4 tools). The SDK accepts both; this normalization exists so
+// TS overload resolution stays simple and instrumentation receives a real
+// ZodType to validate with.
+export function objectSchema(schema: z.ZodType | z.ZodRawShape): z.ZodType;
+export function objectSchema(
+  schema: z.ZodType | z.ZodRawShape | undefined,
+): z.ZodType | undefined;
+export function objectSchema(schema: z.ZodType | z.ZodRawShape | undefined) {
+  if (!schema) return undefined;
+  return schema instanceof z.ZodType ? schema : z.object(schema);
+}
 
 // Tools that pass DataForSEO rows straight through to structuredContent hand the
 // MCP SDK typed class instances (e.g. DataforseoLabsSerpCompetitorsLiveItem), not

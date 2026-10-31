@@ -23,6 +23,16 @@ export const user = sqliteTable("user", {
     .$onUpdate(() => /* @__PURE__ */ new Date())
     .notNull(),
   analyticsOptedOut: integer("analytics_opted_out", { mode: "boolean" }),
+  termsAcceptedVersion: text("terms_accepted_version"),
+  termsAcceptedAt: integer("terms_accepted_at", { mode: "timestamp_ms" }),
+  productUpdatesOptIn: integer("product_updates_opt_in", { mode: "boolean" }),
+  productUpdatesChangedAt: integer("product_updates_changed_at", {
+    mode: "timestamp_ms",
+  }),
+  // The org this user last worked in; seeds session.activeOrganizationId at
+  // sign-in (validated against a live membership first). Not a FK: an org
+  // delete must not fail because a user's last-active pointer references it.
+  lastActiveOrganizationId: text("last_active_organization_id"),
 });
 
 export const session = sqliteTable(
@@ -74,7 +84,20 @@ export const account = sqliteTable(
       .$onUpdate(() => /* @__PURE__ */ new Date())
       .notNull(),
   },
-  (table) => [index("account_userId_idx").on(table.userId)],
+  (table) => [
+    index("account_userId_idx").on(table.userId),
+    // better-auth looks up accounts by (accountId, providerId) on every
+    // credential/OAuth sign-in; without this it seq-scans the account table.
+    index("account_accountId_providerId_idx").on(
+      table.accountId,
+      table.providerId,
+    ),
+    uniqueIndex("account_google_grant_owner_idx")
+      .on(table.userId, table.providerId, table.accountId)
+      .where(
+        sql`${table.providerId} in ('google-search-console', 'google-analytics')`,
+      ),
+  ],
 );
 
 export const verification = sqliteTable(
@@ -92,7 +115,12 @@ export const verification = sqliteTable(
       .$onUpdate(() => /* @__PURE__ */ new Date())
       .notNull(),
   },
-  (table) => [index("verification_identifier_idx").on(table.identifier)],
+  (table) => [
+    index("verification_identifier_idx").on(table.identifier),
+    // better-auth's periodic cleanup deletes rows via `expires_at < now()`,
+    // a range scan that seq-scans the whole table without this index.
+    index("verification_expiresAt_idx").on(table.expiresAt),
+  ],
 );
 
 export const organization = sqliteTable(
@@ -124,6 +152,10 @@ export const member = sqliteTable(
   (table) => [
     index("member_organizationId_idx").on(table.organizationId),
     index("member_userId_idx").on(table.userId),
+    uniqueIndex("member_organizationId_userId_uidx").on(
+      table.organizationId,
+      table.userId,
+    ),
   ],
 );
 
@@ -148,6 +180,41 @@ export const invitation = sqliteTable(
   (table) => [
     index("invitation_organizationId_idx").on(table.organizationId),
     index("invitation_email_idx").on(table.email),
+  ],
+);
+
+export const apikey = sqliteTable(
+  "apikey",
+  {
+    id: text("id").primaryKey(),
+    configId: text("config_id").default("default").notNull(),
+    name: text("name"),
+    start: text("start"),
+    prefix: text("prefix"),
+    key: text("key").notNull(),
+    referenceId: text("reference_id").notNull(),
+    refillInterval: integer("refill_interval"),
+    refillAmount: integer("refill_amount"),
+    lastRefillAt: integer("last_refill_at", { mode: "timestamp_ms" }),
+    enabled: integer("enabled", { mode: "boolean" }).default(true),
+    rateLimitEnabled: integer("rate_limit_enabled", {
+      mode: "boolean",
+    }).default(true),
+    rateLimitTimeWindow: integer("rate_limit_time_window").default(60000),
+    rateLimitMax: integer("rate_limit_max").default(120),
+    requestCount: integer("request_count").default(0),
+    remaining: integer("remaining"),
+    lastRequest: integer("last_request", { mode: "timestamp_ms" }),
+    expiresAt: integer("expires_at", { mode: "timestamp_ms" }),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+    permissions: text("permissions"),
+    metadata: text("metadata"),
+  },
+  (table) => [
+    index("apikey_configId_idx").on(table.configId),
+    index("apikey_referenceId_idx").on(table.referenceId),
+    index("apikey_key_idx").on(table.key),
   ],
 );
 

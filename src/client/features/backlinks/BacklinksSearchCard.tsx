@@ -1,25 +1,24 @@
 import { useEffect, useState } from "react";
-import { useForm } from "@tanstack/react-form";
-import { Search } from "lucide-react";
+import { useForm, useStore } from "@tanstack/react-form";
 import {
   createFormValidationErrors,
   getFieldError,
-  getFormError,
   shouldValidateFieldOnChange,
 } from "@/client/lib/forms";
-import type { BacklinksSearchState } from "./backlinksPageTypes";
+import { ResearchScopeSelect } from "@/client/components/ResearchScopeSelect";
+import { SearchCard, SearchInput } from "@/client/components/SearchCard";
 import {
-  inferBacklinksSearchScopeFromTarget,
-  resolveBacklinksSearchScope,
-} from "./backlinksSearchScope";
+  defaultScopeForInput,
+  parseResearchTarget,
+} from "@/shared/researchScope";
+import type { BacklinksSearchState } from "./backlinksPageTypes";
 
 type SearchDraft = Pick<BacklinksSearchState, "target" | "scope">;
 
 function getBacklinksValidationErrors(
   value: SearchDraft,
   shouldValidateUntouchedField: boolean,
-  canOpenSearch?: (value: SearchDraft) => boolean,
-  tabLimit?: number,
+  validateFormat = false,
 ) {
   if (!value.target.trim()) {
     if (!shouldValidateUntouchedField) {
@@ -33,34 +32,24 @@ function getBacklinksValidationErrors(
     });
   }
 
-  const normalizedValue = {
-    ...value,
-    target: value.target.trim(),
-  };
-
-  if (canOpenSearch && !canOpenSearch(normalizedValue)) {
-    return createFormValidationErrors({
-      fields: {
-        target: `Close a tab to open more searches (max ${tabLimit ?? 8}).`,
-      },
-    });
+  if (validateFormat) {
+    const parsed = parseResearchTarget(value.target, value.scope);
+    if (!parsed.ok) {
+      return createFormValidationErrors({
+        fields: { target: parsed.message },
+      });
+    }
   }
 
   return null;
 }
 
 export function BacklinksSearchCard({
-  canOpenSearch,
-  errorMessage,
   initialValues,
   onSubmit,
-  tabLimit,
 }: {
-  canOpenSearch?: (values: SearchDraft) => boolean;
-  errorMessage: string | null;
   initialValues: SearchDraft;
   onSubmit: (values: SearchDraft) => void;
-  tabLimit?: number;
 }) {
   const [userSelectedScope, setUserSelectedScope] = useState(false);
   const form = useForm({
@@ -70,25 +59,11 @@ export function BacklinksSearchCard({
         getBacklinksValidationErrors(
           value,
           shouldValidateFieldOnChange(formApi, "target"),
-          canOpenSearch,
-          tabLimit,
         ),
-      onSubmit: ({ value }) =>
-        getBacklinksValidationErrors(value, true, canOpenSearch, tabLimit),
+      onSubmit: ({ value }) => getBacklinksValidationErrors(value, true, true),
     },
     onSubmit: ({ value }) => {
-      const target = value.target.trim();
-      const scope = resolveBacklinksSearchScope({
-        target,
-        selectedScope: value.scope,
-        userSelectedScope,
-      });
-
-      onSubmit({
-        ...value,
-        target,
-        scope,
-      });
+      onSubmit({ ...value, target: value.target.trim() });
     },
   });
 
@@ -97,116 +72,51 @@ export function BacklinksSearchCard({
     setUserSelectedScope(false);
   }, [form, initialValues]);
 
+  const targetError = useStore(form.store, (state) =>
+    getFieldError(state.fieldMeta.target?.errors ?? []),
+  );
+
   return (
-    <div className="card bg-base-100 border border-base-300">
-      <div className="card-body gap-4">
-        <form
-          className="space-y-3"
-          onSubmit={(event) => {
-            event.preventDefault();
-            void form.handleSubmit();
-          }}
-        >
-          <div className="space-y-3">
-            <div className="grid grid-cols-1 gap-3 lg:grid-cols-12">
-              <form.Field name="target">
-                {(field) => {
-                  const targetError = getFieldError(field.state.meta.errors);
+    <SearchCard
+      onSubmit={(event) => {
+        event.preventDefault();
+        void form.handleSubmit();
+      }}
+      error={targetError}
+      errorId="backlinks-target-error"
+    >
+      <form.Field name="target">
+        {(field) => (
+          <SearchInput
+            placeholder="Enter a domain or URL"
+            aria-label="Domain or URL"
+            value={field.state.value}
+            onChange={(event) => {
+              const nextTarget = event.target.value;
+              field.handleChange(nextTarget);
+              if (!userSelectedScope) {
+                form.setFieldValue("scope", defaultScopeForInput(nextTarget));
+              }
+            }}
+            aria-invalid={targetError ? true : undefined}
+            aria-describedby={
+              targetError ? "backlinks-target-error" : undefined
+            }
+          />
+        )}
+      </form.Field>
 
-                  return (
-                    <label
-                      className={`input input-bordered lg:col-span-10 flex items-center gap-2 ${targetError ? "input-error" : ""}`}
-                    >
-                      <Search className="size-4 text-base-content/60" />
-                      <input
-                        placeholder="Enter a domain or URL"
-                        value={field.state.value}
-                        onChange={(event) => {
-                          const nextTarget = event.target.value;
-                          field.handleChange(nextTarget);
-                          if (!userSelectedScope) {
-                            form.setFieldValue(
-                              "scope",
-                              inferBacklinksSearchScopeFromTarget(nextTarget),
-                            );
-                          }
-                        }}
-                      />
-                    </label>
-                  );
-                }}
-              </form.Field>
-
-              <form.Subscribe selector={(state) => state.isSubmitting}>
-                {(isSubmitting) => (
-                  <button
-                    type="submit"
-                    className="btn btn-primary lg:col-span-2"
-                    disabled={isSubmitting}
-                  >
-                    {isSubmitting ? "Loading..." : "Search"}
-                  </button>
-                )}
-              </form.Subscribe>
-            </div>
-
-            <form.Field name="target">
-              {(field) => {
-                const targetError = getFieldError(field.state.meta.errors);
-
-                return targetError ? (
-                  <p className="text-sm text-error">{targetError}</p>
-                ) : null;
-              }}
-            </form.Field>
-
-            <form.Subscribe selector={(state) => state.errorMap.onSubmit}>
-              {(submitError) => {
-                const formError = getFormError(submitError);
-
-                return formError ? (
-                  <p className="text-sm text-error">{formError}</p>
-                ) : null;
-              }}
-            </form.Subscribe>
-
-            <div className="flex items-center gap-1">
-              <form.Field name="scope">
-                {(field) => (
-                  <>
-                    <button
-                      type="button"
-                      className={`btn btn-xs ${field.state.value === "domain" ? "btn-soft" : "btn-ghost"}`}
-                      onClick={() => {
-                        setUserSelectedScope(true);
-                        field.handleChange("domain");
-                      }}
-                    >
-                      Site-wide
-                    </button>
-                    <button
-                      type="button"
-                      className={`btn btn-xs ${field.state.value === "page" ? "btn-soft" : "btn-ghost"}`}
-                      onClick={() => {
-                        setUserSelectedScope(true);
-                        field.handleChange("page");
-                      }}
-                    >
-                      Exact page
-                    </button>
-                  </>
-                )}
-              </form.Field>
-            </div>
-          </div>
-        </form>
-
-        {errorMessage ? (
-          <div className="rounded-lg border border-error/30 bg-error/10 p-3 text-sm text-error">
-            {errorMessage}
-          </div>
-        ) : null}
-      </div>
-    </div>
+      <form.Field name="scope">
+        {(field) => (
+          <ResearchScopeSelect
+            value={field.state.value}
+            onChange={(scope) => {
+              setUserSelectedScope(true);
+              field.handleChange(scope);
+            }}
+          />
+        )}
+      </form.Field>
+    </SearchCard>
   );
 }

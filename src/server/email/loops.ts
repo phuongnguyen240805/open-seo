@@ -58,6 +58,7 @@ async function sendLoopsTransactionalEmail({
       addToAudience: false,
       dataVariables,
     }),
+    signal: AbortSignal.timeout(10_000),
   });
 
   if (response.ok) {
@@ -81,10 +82,12 @@ export async function upsertHostedSignupContact({
   userId,
   email,
   name,
+  productUpdates,
 }: {
   userId: string;
   email: string;
   name?: string | null;
+  productUpdates: boolean;
 }) {
   const apiKey = getOptionalEnv("LOOPS_API_KEY");
 
@@ -95,6 +98,13 @@ export async function upsertHostedSignupContact({
     return;
   }
 
+  const listId = getOptionalEnv("LOOPS_PRODUCT_UPDATES_LIST_ID");
+  if (!listId) {
+    console.warn(
+      "Skipping the Loops product updates list at signup: LOOPS_PRODUCT_UPDATES_LIST_ID is not set",
+    );
+  }
+
   await updateLoopsContact({
     apiKey,
     payload: {
@@ -103,8 +113,46 @@ export async function upsertHostedSignupContact({
       source: "openseo-signup",
       userGroup: "app-user",
       ...getContactNameParts(name),
+      // Only ever adds: someone who joined the list through the website's
+      // newsletter form stays on it until they turn updates off in the app.
+      ...(listId && productUpdates ? { mailingLists: { [listId]: true } } : {}),
     },
     logContext: { action: "signup-contact-sync" },
+  });
+}
+
+/** Adds the contact to the product updates list or removes it. Turning
+ *  updates off leaves `subscribed` alone, because lifecycle emails depend on
+ *  it; turning them on also resubscribes a contact who once unsubscribed from
+ *  everything, since Loops won't email list members who are unsubscribed. */
+export async function updateProductUpdatesSubscription({
+  userId,
+  email,
+  optIn,
+}: {
+  userId: string;
+  email: string;
+  optIn: boolean;
+}) {
+  const apiKey = getOptionalEnv("LOOPS_API_KEY");
+  const listId = getOptionalEnv("LOOPS_PRODUCT_UPDATES_LIST_ID");
+
+  if (!apiKey || !listId) {
+    console.warn(
+      "Skipping Loops product updates sync: LOOPS_API_KEY or LOOPS_PRODUCT_UPDATES_LIST_ID is not set",
+    );
+    return;
+  }
+
+  await updateLoopsContact({
+    apiKey,
+    payload: {
+      email,
+      userId,
+      mailingLists: { [listId]: optIn },
+      ...(optIn ? { subscribed: true } : {}),
+    },
+    logContext: { action: "product-updates-sync" },
   });
 }
 
@@ -123,6 +171,37 @@ export async function sendHostedVerificationEmail({
     dataVariables: {
       appName: "OpenSEO",
       confirmationUrl,
+    },
+  });
+}
+
+export async function sendHostedInvitationEmail({
+  email,
+  inviteUrl,
+  organizationName,
+  inviterName,
+  inviterEmail,
+}: {
+  email: string;
+  inviteUrl: string;
+  organizationName: string;
+  inviterName: string;
+  inviterEmail: string;
+}) {
+  // Not part of getHostedAuthEmailConfig(): that trio gates hasHostedAuthConfig
+  // and adding a new required var there would brick existing deployments.
+  const apiKey = getRequiredEnv("LOOPS_API_KEY");
+  const templateId = getRequiredEnv("LOOPS_TRANSACTIONAL_INVITATION_ID");
+  await sendLoopsTransactionalEmail({
+    apiKey,
+    email,
+    transactionalId: templateId,
+    dataVariables: {
+      appName: "OpenSEO",
+      inviteUrl,
+      organizationName,
+      inviterName,
+      inviterEmail,
     },
   });
 }
