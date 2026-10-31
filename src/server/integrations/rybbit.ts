@@ -8,6 +8,8 @@ import { isAuditRenderingAllowed } from "@/server/lib/audit/rendering-policy";
 import { AppError, asAppError } from "@/server/lib/errors";
 import { responseForAppError } from "@/server/lib/http-errors";
 import { startAuditSchema } from "@/types/schemas/audit";
+import { resolveKediContext } from "./kedi-context";
+import { ProjectService } from "@/server/features/projects/services/ProjectService";
 
 const prefix = "/api/integrations/v1/";
 const idSchema = z.string().uuid();
@@ -36,7 +38,8 @@ export async function handleRybbitRequest(request: Request): Promise<Response> {
         headers: { Allow: "GET, POST", "Cache-Control": "no-store" },
       });
 
-    const context = await resolveUserContextFromHeaders(request.headers);
+    const kediContext = await resolveKediContext(request);
+    const context = kediContext ?? await resolveUserContextFromHeaders(request.headers);
     const path = requestUrl.pathname.slice(prefix.length).split("/");
     if (
       request.method === "GET" &&
@@ -55,9 +58,9 @@ export async function handleRybbitRequest(request: Request): Promise<Response> {
       path.length === 1 &&
       path[0] === "projects"
     ) {
-      const projects = await ProjectRepository.listProjects(
-        context.organizationId,
-      );
+      const projects = kediContext
+        ? await ProjectService.listProjectsEnsuringOne(context.organizationId)
+        : await ProjectRepository.listProjects(context.organizationId);
       response = Response.json({
         data: projects.map(({ id, name, domain }) => ({ id, name, domain })),
       });

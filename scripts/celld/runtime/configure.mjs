@@ -48,6 +48,9 @@ if (
 await cp("/opt/openseo", `${root}/app`, { recursive: true });
 const config = JSON.parse(await readFile(`${root}/app/wrangler.json`, "utf8"));
 const allowed = [
+  "KEDI_SEO_SSO_SECRET",
+  "KEDI_SEO_ADMIN_ORIGIN",
+  "KEDI_SEO_FRONTEND_ORIGIN",
   "DATAFORSEO_API_KEY",
   "CONTEXT_API_KEY",
   "OPENROUTER_API_KEY",

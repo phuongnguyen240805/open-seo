@@ -13,6 +13,29 @@ administrator credential or allow `local_noauth` for the integration.
 
 ## Contract
 
+### Optional Kedi Admin delegated login
+
+The facade also accepts `X-Kedi-SEO-Grant` when the operator configures
+`KEDI_SEO_SSO_SECRET`, `KEDI_SEO_ADMIN_ORIGIN` and `KEDI_SEO_FRONTEND_ORIGIN`
+(the public Rybbit origin). It verifies HS256, issuer, audience `kedi-seo`,
+subject, expiration, a maximum 60-second lifetime and the bound frontend origin.
+An invalid supplied grant fails authentication; it cannot fall back to a native
+session. These values are server-only and included in standalone initialization.
+
+Kedi Admin checks its source session and live app/tenant membership before
+issuing the grant. Identity is namespaced by SHA-256 of JSON
+`[issuer, appCode, organizationId, tenantId]`, then `[organizationDigest, subject]`.
+This matches Rybbit's shared identity contract. Separate tenants never merge by
+email; colleagues share the tenant organization. Synthetic identities have no
+password. Existing user/project data is not implicitly transferred.
+
+Signed staff identities can only read; owner/admin identities retain ordinary
+audit limits. Signed context supplies the organization for every existing
+project/audit authorization check. For these new delegated organizations only,
+listing projects uses the normal default-project bootstrap. Password-account
+behavior remains unchanged. Kedi logout or membership revocation stops renewal;
+already issued grants expire within at most 60 seconds.
+
 All successful responses use `{ data: ... }`; errors use `{ error: CODE }` and
 `Cache-Control: private, no-store`. Routes:
 

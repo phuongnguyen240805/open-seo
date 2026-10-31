@@ -29,6 +29,11 @@ type DelegatedOrganizationInput = {
   slug: string;
 };
 
+async function upsertKediMembership(input: { userId: string; organizationId: string; role: string }) {
+  await db.insert(member).values({ id: input.userId, ...input, createdAt: new Date() })
+    .onConflictDoUpdate({ target: member.id, set: { role: input.role } });
+}
+
 async function upsertDelegatedOrganization(input: DelegatedOrganizationInput) {
   await db
     .insert(organization)
@@ -343,6 +348,7 @@ async function setProductUpdatesOptIn(
 
 export const AuthRepository = {
   upsertDelegatedOrganization,
+  upsertKediMembership,
   findFirstOrganizationIdForUser,
   findFirstFoundedOrganizationIdForUser,
   findNewestMembershipForUser,
