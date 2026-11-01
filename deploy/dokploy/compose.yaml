@@ -25,8 +25,6 @@ services:
       timeout: 3s
       retries: 20
   runtime:
-    <<: &a2
-      image: ${OPENSEO_IMAGE:-ghcr.io/every-app/open-seo-standalone:latest}
     environment:
       <<: *a1
       CELLD_MAX_RSS_MB: "1536"
@@ -62,7 +60,6 @@ services:
       context: ../..
       dockerfile: deploy/standalone/Dockerfile
   init:
-    <<: *a2
     command:
       - sh
       - /opt/standalone/init.sh
@@ -92,7 +89,6 @@ services:
       context: ../..
       dockerfile: deploy/standalone/Dockerfile
   crawl-gateway:
-    <<: *a2
     command:
       - node
       - /opt/standalone/crawl-gateway.mjs
