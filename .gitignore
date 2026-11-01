@@ -17,6 +17,7 @@ dist/
 !.env.example
 !.env.preview.example
 !.env.selfhost.example
+!deploy/dokploy/.env.example
 .vercel
 .output
 .nitro
