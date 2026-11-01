@@ -103,6 +103,9 @@ services:
       dockerfile: deploy/standalone/Dockerfile
   web:
     image: nginx:1.28-alpine@sha256:a8b39bd9cf0f83869a2162827a0caf6137ddf759d50a171451b335cecc87d236
+    networks:
+      - default
+      - dokploy-network
     volumes:
       - type: volume
         source: web-config
@@ -121,6 +124,10 @@ services:
     restart: unless-stopped
     expose:
       - "80"
+networks:
+  default: {}
+  dokploy-network:
+    external: true
 volumes:
   storage: null
   runtime: null
